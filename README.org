@@ -1,0 +1,102 @@
+* js-eval
+
+This package in progress.
+
+** Installation
+
+*** Manually
+
+Download repository and it to your load path in your init file:
+
+#+begin_src elisp :eval no
+
+(add-to-list 'load-path "/path/to/js-eval/")
+
+(require 'js-eval)
+
+#+end_src
+
+*** With use-package and straight
+
+#+begin_src elisp :eval no
+
+(use-package js-eval
+  :straight (:repo "KarimAziev/js-eval" :type git :host github)
+  :commands (js-eval-ensure-babel-project
+             js-eval-current-file-with-node
+             js-eval-toggle-use-window
+             js-eval-cleanup
+             js-eval-compile-region-or-buffer
+             js-eval-eval
+             js-eval-visit-compiled
+             js-eval-compile-file
+             js-eval-server-clear
+             js-eval-popup-open-inspector
+             js-eval-overlay-copy
+             js-eval-server-run))
+
+#+end_src
+
+** Commands
+
++ ~js-eval-ensure-babel-project~
+Interactivelly create directory with babel and plugins.
+
++ ~js-eval-current-file-with-node~
+Eval current file with node.
+
++ ~js-eval-toggle-use-window~
+Toggle use window.
+
++ ~js-eval-cleanup~
+Remove compiled files in temp directory.
+
++ ~js-eval-compile-region-or-buffer~
+Compile active region or whole buffer and show it in popup.
+
++ ~js-eval-eval~  (&optional arg)
+Eval ARG and show result.
+
++ ~js-eval-visit-compiled~  (&optional file)
+Find compiled version of FILE in temp directory.
+
++ ~js-eval-compile-file~  (&optional source-filename target-filename node-modules-path)
+Comile SOURCE-FILENAME to TARGET-FILENAME. NODE-MODULES-PATH is full path to node_modules.
+
++ ~js-eval-server-clear~
+Clear the Javascript REPL.
+
++ ~js-eval-popup-open-inspector~
+Open or restore popup in a buffer ~js-eval-popup-inspect-buffer-name~.
+
++ ~js-eval-overlay-copy~
+Copy after-string property from variable ~js-eval-overlay-at~.
+
++ ~js-eval-server-run~
+Run js window server.
+
+** Customization
+
++ ~js-eval-node-modules-dir~
+Relative to project root or absolute path to node_modules directory.
+
++ ~js-eval-babel-options~
+Options for compiling with babel. Plugins and presets used in options should exists in ~js-eval-babel-node-modules-path~.
+
++ ~js-eval-babel-node-modules-path~
+Directory with babel executable, plugins and presets.
+
++ ~js-eval-project-aliases~
+An associated list of ((ALIAS_A . DIRECTORY_A) (ALIAS_B . DIR_B DIR_C)).
+
++ ~js-eval-preffered-extensions~
+Preferred suffixes for files with different extension.
+
++ ~js-eval-package-json-sections~
+Package-json sections to retrieve candidates from node_modules.
+
++ ~js-eval-node-modules-priority-section-to-read~
+Package-json sections to retrieve candidates from node_modules.
+
++ ~js-eval-tsconfig-filename~
+Name of tsconfig or jsconfig.
