@@ -300,7 +300,7 @@ Case is not ignored."
 
 (defun js-eval-propertize (item &rest props)
   "Stringify and `propertize' ITEM with PROPS."
-  (apply 'propertize
+  (apply #'propertize
          (js-eval-stringify item)
          props))
 
@@ -1281,7 +1281,7 @@ Default value for NTH is 1 and for POSITION - value of current point."
         (let ((val (pop nodes)))
           (if (listp val)
               (js-eval-make-item
-               (mapconcat 'js-eval-stringify val "")
+               (mapconcat #'js-eval-stringify val "")
                :start start :end end)
             (js-eval-make-item
              (format "%s" val) :start start :end end)))))))
@@ -1308,7 +1308,7 @@ and props :id, :start and :end."
           (setq end (point)))))
     (setq key (and start end (buffer-substring-no-properties start end)))
     (if (and key with-props)
-        (apply 'js-eval-propertize
+        (apply #'js-eval-propertize
                (append (list key)
                        (list :id key
                              :start start
@@ -1642,19 +1642,19 @@ JSON-TYPE must be one of `alist', `plist', or `hash-table'."
   "Return directories in PATH with package.json."
   (let ((dirs (and path
                    (file-directory-p path)
-                   (seq-filter 'file-directory-p
+                   (seq-filter #'file-directory-p
                                (mapcar
                                 (js-eval-flip
                                  'expand-file-name
                                  path)
                                 (funcall
                                  (js-eval-compose
-                                  (apply-partially 'delete "node_modules")
-                                  (apply-partially 'delete "..")
-                                  (apply-partially 'delete ".")
+                                  (apply-partially #'delete "node_modules")
+                                  (apply-partially #'delete "..")
+                                  (apply-partially #'delete ".")
                                   'directory-files)
                                  path))))))
-    (append dirs (mapcan 'js-eval-extract-subpackages dirs))))
+    (append dirs (mapcan #'js-eval-extract-subpackages dirs))))
 
 (defun js-eval-try-json-sections (json-file sections)
   "Read JSON-FILE and return first section from SECTIONS."
@@ -1676,8 +1676,8 @@ If PATH match `js-eval-file-ext-regexp' just expands PATH to DIR."
   (let ((expanded-path (if dir (expand-file-name path dir) path)))
     (if (js-eval-string-match-p js-eval-file-ext-regexp path)
         expanded-path
-      (seq-find 'file-exists-p
-                (mapcar (apply-partially 'js-eval-add-ext-if-not
+      (seq-find #'file-exists-p
+                (mapcar (apply-partially #'js-eval-add-ext-if-not
                                          expanded-path)
                         js-eval-preffered-extensions)))))
 
@@ -1803,7 +1803,7 @@ otherwise firstly expand BASE-URL to project directory."
                               js-eval-node-modules-regexp))
                           root)))
        (package-json (js-eval-read-json package-json-path 'hash-table)))
-    (seq-remove 'null
+    (seq-remove #'null
                 (mapcan (lambda (section)
                           (when-let ((hash (gethash section
                                                     package-json)))
@@ -1912,7 +1912,7 @@ PATH should be an absolute filename without extension."
                     (files (js-eval-directory-files dir)))
           (if (= 1 (length files))
               (car files)
-            (seq-find 'js-eval-is-index-file-p files)))
+            (seq-find #'js-eval-is-index-file-p files)))
         (car (js-eval-resolve-paths path))
         (js-eval-try-ext path)
         (js-eval-try-ext (js-eval-join-file path "index"))
@@ -2060,7 +2060,7 @@ Result depends on syntax table's string quote character."
         (compiler-options)
         (found)
         (base-url)
-        (extends (seq-find 'file-exists-p
+        (extends (seq-find #'file-exists-p
                            (and project-root
                                 (delete nil
                                         (list
@@ -2276,7 +2276,7 @@ Plugins and presets used in options should exists in
                   (js-eval-flatten (car opt))
                 (car opt)))
              ((and (listp opt))
-              (mapcar 'js-eval-flatten opt))
+              (mapcar #'js-eval-flatten opt))
              (t opt)))
           items))
 
@@ -2365,7 +2365,7 @@ Invoke CALLBACK without args."
       (when-let ((val (pop pl)))
         (push val filtered-pl)
         (push key filtered-pl)))
-    (apply 'js-eval-propertize candidate filtered-pl)))
+    (apply #'js-eval-propertize candidate filtered-pl)))
 
 (defun js-eval-stringify (x)
   "Convert X to string."
@@ -2392,7 +2392,7 @@ Invoke CALLBACK without args."
 (defun js-eval-get-object-items (obj &optional parent-key)
 	"Return nested paths from OBJ, optionally with PARENT-KEY."
   (js-eval-sort-object-props-by-pos
-   (mapcar 'js-eval-normalize-object-prop-position
+   (mapcar #'js-eval-normalize-object-prop-position
            (js-eval-get-object-keys obj parent-key))))
 
 (defun js-eval-node-modules-candidates (&optional project-root)
@@ -2598,7 +2598,7 @@ Value of allises is specified in variable `js-eval-project-aliases'."
              (js-eval-normalize-aliases
               js-eval-project-aliases))))
   (setq js-eval-aliases
-        (seq-sort-by 'length #'> (mapcar 'car js-eval-project-aliases))))
+        (seq-sort-by #'length #'> (mapcar #'car js-eval-project-aliases))))
 
 (defun js-eval-find-project-files (&optional project-root)
   "Return files of PROJECT-ROOT without node_modules."
@@ -2789,7 +2789,7 @@ mapNodeBuiltins();")
               (exec-dir
                (expand-file-name "node_modules/.bin/" node-modules))
               (commands
-               (seq-filter 'file-executable-p
+               (seq-filter #'file-executable-p
                            (and (file-exists-p exec-dir)
                                 (directory-files-recursively exec-dir ".")))))
     commands))
@@ -2823,7 +2823,7 @@ Return list of two elements: status (t or nil) and string with result."
               (js-eval-resolve-module "~/"))))
         (list
          (eq 0
-             (apply 'call-process-region
+             (apply #'call-process-region
                     (append
                      (list (point-min)
                            (point-max))
@@ -2855,11 +2855,11 @@ SETUP-ARGS can includes keymaps, syntax table, filename and function.
 See a function `js-eval-popup-open-inspector'."
   (let ((buffer (get-buffer-create
                  js-eval-popup-momentary-buffer-name))
-        (mode-fn (seq-find 'functionp setup-args)))
+        (mode-fn (seq-find #'functionp setup-args)))
     (setq js-eval-popup-content (if (or
                                      mode-fn
                                      (not (stringp content)))
-                                    (apply 'js-eval-popup-fontify
+                                    (apply #'js-eval-popup-fontify
                                            (list content mode-fn))
                                   content))
     (setq js-eval-popup-meta setup-args)
@@ -2904,13 +2904,13 @@ A function will be called without args inside quit function.
 
 If SETUP-ARGS contains syntax table, it will be used in the inspect buffer."
   (let ((buffer (get-buffer-create js-eval-popup-inspect-buffer-name))
-        (keymaps (seq-filter 'keymapp setup-args))
-        (stx-table (seq-find 'syntax-table-p setup-args))
-        (mode-fn (seq-find 'functionp setup-args)))
+        (keymaps (seq-filter #'keymapp setup-args))
+        (stx-table (seq-find #'syntax-table-p setup-args))
+        (mode-fn (seq-find #'functionp setup-args)))
     (setq js-eval-popup-content (if (or
                                        mode-fn
                                        (not (stringp content)))
-                                      (apply 'js-eval-popup-fontify
+                                      (apply #'js-eval-popup-fontify
                                              (list content mode-fn))
                                     content))
     (with-current-buffer buffer
@@ -2960,7 +2960,7 @@ If SETUP-ARGS contains syntax table, it will be used in the inspect buffer."
 (defun js-eval-popup-open-inspector ()
 	"Open or restore popup in a buffer `js-eval-popup-inspect-buffer-name'."
   (interactive)
-  (apply 'js-eval-popup-inspect
+  (apply #'js-eval-popup-inspect
          (or js-eval-popup-content "")
          js-eval-popup-meta))
 
@@ -3138,7 +3138,7 @@ Optional argument DIR is used as default directory."
 
 (defun js-eval-join-when-exists (&rest args)
   "Return joined ARGS when exists."
-  (let ((joined-path (apply 'js-eval-join-file args)))
+  (let ((joined-path (apply #'js-eval-join-file args)))
     (when (file-exists-p joined-path)
       joined-path)))
 
@@ -3200,7 +3200,7 @@ Second argument ARG-B is optional and can be passed later."
                   (string-join
                    (seq-uniq
                     (mapcar
-                     'expand-file-name
+                     #'expand-file-name
                      (delete
                       nil
                       (append
@@ -3224,7 +3224,7 @@ Second argument ARG-B is optional and can be passed later."
     (let ((process-environment
            (append
             '("NODE_NO_WARNINGS=1") environ process-environment)))
-      (apply 'call-process (car command) nil t nil (cdr command))
+      (apply #'call-process (car command) nil t nil (cdr command))
       (buffer-string))))
 
 (defvar js-eval-project-files nil)
@@ -3347,16 +3347,16 @@ With ARG, do this that many times."
 at POS
 NODE is ."
   (cond ((consp node)
-         (mapcar (apply-partially 'js-eval-find-by-node-pos pos) node))
+         (mapcar (apply-partially #'js-eval-find-by-node-pos pos) node))
         ((listp node)
-         (seq-find (apply-partially 'js-eval-find-by-node-pos pos) node))
+         (seq-find (apply-partially #'js-eval-find-by-node-pos pos) node))
         ((stringp node)
          (let ((value (js-eval-get-prop node :value)))
            (when-let
                ((node-start
                  (car
                   (seq-sort
-                   '< (or
+                   #'< (or
                        (delete
                         nil (append
                              (list
@@ -3377,7 +3377,7 @@ NODE is ."
                                :value-start))))))))
                 (node-end
                  (car (seq-sort
-                       '> (delete nil (append (list
+                       #'> (delete nil (append (list
                                                (js-eval-get-prop
                                                 value
                                                 :end)
@@ -3411,7 +3411,7 @@ Optional argument DEEP is whether to parse function declarations recoursively."
                       (js-eval-parse-scope (point-min) (point-max) deep)))
     (setq parent-node
           (seq-find
-           (apply-partially 'js-eval-find-by-node-pos pos) top-scope))
+           (apply-partially #'js-eval-find-by-node-pos pos) top-scope))
     (while (progn (setq children
                         (or
                          (delete nil
@@ -3430,7 +3430,7 @@ Optional argument DEEP is whether to parse function declarations recoursively."
       (setq scopes (append scopes children))
       (setq parent-node
             (seq-find
-             (apply-partially 'js-eval-find-by-node-pos pos) children)))
+             (apply-partially #'js-eval-find-by-node-pos pos) children)))
     (js-eval-sort-by-prop :start (if scopes
                                     (append scopes top-scope)
                                   top-scope))))
@@ -3457,7 +3457,7 @@ Optional argument DEEP is whether to parse function declarations recoursively."
   (let ((top-scope (save-excursion
                      (js-eval-parse-scope (point-min) (point-max)))))
     (seq-find
-     (apply-partially 'js-eval-find-by-node-pos (point))
+     (apply-partially #'js-eval-find-by-node-pos (point))
      top-scope)))
 
 (defun js-eval-parse-scope-inner (&optional start)
@@ -3680,7 +3680,7 @@ If optional argument WITH-PROPS is non-nil, propertize items."
           (when (looking-at ",")
             (forward-char 1)
             (js-eval-forward-whitespace))))
-      (apply 'vector (reverse arr-items)))))
+      (apply #'vector (reverse arr-items)))))
 
 (defun js-eval-parse-object (&optional with-props)
   "Parse object or array at point.
@@ -3759,7 +3759,7 @@ INDENT is used recoursively for nested objects."
                                       value indent)))))
                          ((vectorp item)
                           (format "[ %s ]"
-                                  (mapconcat 'js-eval-transpile-alist
+                                  (mapconcat #'js-eval-transpile-alist
                                              (append item nil) ", ")))
                          ((listp item)
                           (format (concat "{\n" margin
@@ -3928,10 +3928,10 @@ If ITEMS is not vector return unchanged ITEMS."
       (cons (js-eval-maybe-strip-quotes key)
             (js-eval-strip-object-props value))))
    ((vectorp item)
-    (apply 'vector
-           (mapcar 'js-eval-strip-object-props item)))
+    (apply #'vector
+           (mapcar #'js-eval-strip-object-props item)))
    ((listp item)
-    (mapcar 'js-eval-strip-object-props item))
+    (mapcar #'js-eval-strip-object-props item))
    ((numberp item)
     item)
    ((stringp item)
@@ -4206,7 +4206,7 @@ If optional CODE is non nil, use it as content of INIT-FILE."
                 (real-paths)
                 (imports))
             (setq real-paths
-                  (delete nil (mapcar 'js-eval-path-to-real
+                  (delete nil (mapcar #'js-eval-path-to-real
                                       paths)))
             (setq imports
                   (seq-remove
@@ -4284,7 +4284,7 @@ IF NODE-MODULES-PATH passed, also expands dependencies to absolute filenames."
     (string-join
      (seq-uniq
       (mapcar
-       'js-eval-strip-text-props
+       #'js-eval-strip-text-props
        (delete
         nil (list (js-eval-get-prop imported-item :real-name)
                   (js-eval-strip-props imported-item)
@@ -4304,7 +4304,7 @@ NODE-MODULES-DIR is used to resolve dependencies."
             (named-imports
              (seq-filter
               (js-eval-compose
-               (apply-partially 'equal 4)
+               (apply-partially #'equal 4)
                (js-eval-flip
                 'js-eval-get-prop :type))
               (cdr imp)))
@@ -4323,7 +4323,7 @@ NODE-MODULES-DIR is used to resolve dependencies."
                  (delete
                   nil
                   (mapcar
-                   'js-eval-import-to-fullname
+                   #'js-eval-import-to-fullname
                    named-imports))
                  ", "))
           (setq named-imports
@@ -4396,7 +4396,7 @@ NODE-MODULES-DIR is used to resolve dependencies."
               (let ((str (js-eval-copy-item item)))
                 (push str codes)))))
         (setq included-codes
-              (mapcar 'js-eval-copy-item
+              (mapcar #'js-eval-copy-item
                       (js-eval-sort-by-prop :start included-codes)))
         (unless (member init-code included-codes)
           (setq included-codes (append included-codes (list init-code))))
@@ -4466,7 +4466,7 @@ NODE-MODULES-DIR is used to resolve dependencies."
                 (progn
                   (js-eval-server-eval-request-async
                    (seq-filter
-                    'cdr
+                    #'cdr
                     `(("code" . ,compiled-code)
                       ("file" . ,current-file)
                       ("dir" . ,default-directory)
@@ -4562,7 +4562,7 @@ NODE-MODULES-PATH is full path to node_modules."
   (mapc (lambda (it) (when-let ((buff (get-file-buffer it)))
                   (kill-buffer buff))
           (delete-file it))
-        (mapcar 'cdr js-eval-files)))
+        (mapcar #'cdr js-eval-files)))
 
 ;;;###autoload
 (defun js-eval-toggle-use-window ()
