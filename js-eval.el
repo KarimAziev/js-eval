@@ -36,6 +36,39 @@
   (require 'subr-x))
 
 (require 'request)
+
+(defconst js-eval-file-ext-regexp
+  (concat "\\.\\("
+          (string-join
+           '("\\(d\\.\\)?tsx?"
+             "jsx" "es6" "es"
+             "mjs" "js" "cjs" "ls"
+             "sjs" "iced" "liticed" "json")
+           "\\|")
+          "\\)\\'")
+  "Regexp matching js, jsx and ts extensions files.")
+
+(defvar js-eval-file-index-regexp
+  (concat "\\(/\\|^\\)" "index"
+          (concat "\\($\\|" js-eval-file-ext-regexp "\\)"))
+  "Regexp matching index file.")
+
+(defun js-eval-string-match-p (regexp str &optional start)
+  "Check STR for a match with REGEXP and return t or nil whether it exists."
+  (when (and str (stringp str)
+             (string-match-p regexp str start))
+    t))
+
+(defun js-eval-add-ext-if-not (file extension)
+  "Add EXTENSION to FILE if it doesn't match `js-eval-file-ext-regexp'."
+  (if (js-eval-string-match-p js-eval-file-ext-regexp file)
+      file
+    (concat file "." extension)))
+
+(defun js-eval-is-index-file-p (path)
+  "Return t if base name of PATH equals index, nil otherwise."
+  (js-eval-string-match-p js-eval-file-index-regexp path))
+
 (require 'json)
 
 (defvar js-eval-popup-inspect-keymap
@@ -54,7 +87,7 @@
 (defvar js-eval-popup-meta nil)
 (defvar js-eval-popup-switch-keymap
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "C-c o") 'js-eval-popup-open-inspector)
+    (define-key map (kbd "C-c o") #'js-eval-popup-open-inspector)
     map)
   "Keymap with commands to execute just before exiting.")
 
@@ -1904,7 +1937,7 @@ PATH should be an absolute filename without extension."
                       package-json
                       js-eval-node-modules-priority-section-to-read)))
           (if (js-eval-string-match-p js-eval-file-ext-regexp
-                                         module)
+                                      module)
               (expand-file-name module path)
             (js-eval-try-find-real-path (js-eval-try-ext module path))))
         (when-let* ((dir (js-eval-join-file path "src"))
@@ -1923,7 +1956,7 @@ PATH should be an absolute filename without extension."
                              package-json
                              '("main"))))
           (if (js-eval-string-match-p js-eval-file-ext-regexp
-                                         module)
+                                      module)
               (expand-file-name module path)
             (js-eval-try-find-real-path
              (js-eval-try-ext module path)))))))
@@ -2343,11 +2376,6 @@ Invoke CALLBACK without args."
            (require 'comint)
            (when (fboundp 'comint-output-filter)
              (set-process-filter proc #'comint-output-filter)))))
-
-(defun js-eval-string-match-p (regexp str &optional start)
-  "Check STR for a match with REGEXP and return t or nil whether it exists."
-  (when (and (not (null str)) (stringp str))
-    (not (null (string-match-p regexp str start)))))
 
 (defun js-eval-get-prop (item property)
   "Return the value of zero position's PROPERTY in ITEM."
