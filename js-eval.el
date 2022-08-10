@@ -4088,21 +4088,7 @@ With COMPILED-NAME allow to jump to it."
     (if (file-exists-p compiled-name)
         (js-eval-visit-compiled compiled-name)
       (message "%s doesn't exists" compiled-name)))
-   ((and result
-         (or
-          (> (length result) 170)
-          (> (length (split-string result "\n" t)) 1)))
-    (js-eval-popup result 'js-mode js-eval-result-keymap))
-   (t
-    (let ((map (make-sparse-keymap)))
-      (define-key map (kbd "C-o")
-                  (lambda () (interactive)
-                    (js-eval-popup-inspect result
-                                           js-eval-result-keymap
-                                           'js-mode)))
-      (setq map (make-composed-keymap
-                 (list js-eval-result-keymap map)))
-      (js-eval-overlay-show result (point) map))))
+   (t (js-eval-popup-inspect result 'js-mode js-eval-result-keymap)))
   result)
 
 (defun js-eval-transform-import-path (path dir &optional node-modules-path)
@@ -4615,6 +4601,12 @@ NODE-MODULES-PATH is full path to node_modules."
                    (propertize (cadr result) 'face 'error))))
         (js-eval-popup msg
                          (when (car result) 'js-mode))))))
+
+(defun js-eval-buffer ()
+  "Eval and compile current buffer."
+  (interactive)
+  (js-eval-eval
+   (buffer-substring-no-properties (point-min) (point-max))))
 
 ;;;###autoload
 (defun js-eval-ensure-babel-project ()
