@@ -2894,7 +2894,7 @@ See a function `js-eval-popup-open-inspector'."
     (with-current-buffer buffer
       (with-current-buffer-window
           buffer
-          (cons 'display-buffer-in-side-window
+          (cons 'display-buffer-in-direction
                 '((window-height . window-preserve-size)))
           (lambda (window _value)
             (with-selected-window window
@@ -4561,12 +4561,14 @@ NODE-MODULES-PATH is full path to node_modules."
 
 ;;;###autoload
 (defun js-eval-compile-region-or-buffer ()
-	"Compile active region or whole buffer and show it in popup."
+  "Compile active region or whole buffer and show it in popup."
   (interactive)
   (js-eval-popup
    (cadr
     (js-eval-babel-compile (or (js-eval-get-region)
-                               (read-string "Compile:\s"))))
+                               (buffer-substring-no-properties
+                                (point-min)
+                                (point-max)))))
    'js-mode))
 
 ;;;###autoload
