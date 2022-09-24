@@ -4176,57 +4176,60 @@ If CODE is non-nil, insert it at the beginning."
             (member (js-eval-get-prev-char) '(";" ",")))
       (js-eval-re-search-backward "[,;]" nil t 1))
     (let ((count-brackets 0))
-      (while (progn
-               (js-eval-backward-whitespace)
-               (pcase (js-eval-get-prev-char)
-                 ((pred (lambda (val)
-                          (string-match-p
-                           js-eval-regexp-name-set
-                           val)))
-                  (let ((word (js-eval-backward-chars js-eval-regexp-name)))
-                    (pcase word
-                      ("function"
-                       (js-eval-backward-whitespace)
-                       (when (or (equal "=" (js-eval-get-operator-at-point -1))
-                                 (member (js-eval-backward-chars
-                                          js-eval-regexp-name)
-                                         '("async" "declare")))
-                         (js-eval-backward-whitespace)
-                         (point)))
-                      ("return" nil)
-                      ((or "import"
-                           "const" "let" "class" "interface" "enum"
-                           "var" "export" "module.exports" "interface"
-                           "declare")
-                       (while (progn
-                                (js-eval-backward-whitespace)
-                                (member (js-eval-backward-chars
-                                         js-eval-regexp-name)
-                                        '("import"
-                                          "const" "let" "class" "interface"
-                                          "enum"
-                                          "var" "export" "module.exports"
-                                          "interface"
-                                          "declare")))))
-                      (_ (point)))))
-                 ((pred (lambda (val)
-                          (string-match-p
-                           "[-!@#%^&*=><~|+/?:]"
-                           val)))
-                  (skip-chars-backward "!@#%^&*=><~|\\-+/?:"))
-                 ("." (skip-chars-backward ".")
-                  (point))
-                 ("}"
-                  (when (= count-brackets 0)
-                    (setq count-brackets (1+ count-brackets))
-                    (forward-sexp -1)
+      (while
+          (pcase (progn
+                   (js-eval-backward-whitespace)
+                   (js-eval-get-prev-char))
+            ((pred null)
+             nil)
+            ((pred (lambda (val)
+                     (string-match-p
+                      js-eval-regexp-name-set
+                      val)))
+             (let ((word (js-eval-backward-chars js-eval-regexp-name)))
+               (pcase word
+                 ("function"
+                  (js-eval-backward-whitespace)
+                  (when (or (equal "=" (js-eval-get-operator-at-point -1))
+                            (member (js-eval-backward-chars
+                                     js-eval-regexp-name)
+                                    '("async" "declare")))
+                    (js-eval-backward-whitespace)
                     (point)))
-                 ((or "]" "'" "\"" "`")
-                  (forward-sexp -1)
-                  (point))
-                 (_ (js-eval-backward-list)))))
-      (setq pos (point))
-      (when (> init-pos pos)
+                 ("return" nil)
+                 ((or "import"
+                      "const" "let" "class" "interface" "enum"
+                      "var" "export" "module.exports" "interface"
+                      "declare")
+                  (while (progn
+                           (js-eval-backward-whitespace)
+                           (member (js-eval-backward-chars
+                                    js-eval-regexp-name)
+                                   '("import"
+                                     "const" "let" "class" "interface"
+                                     "enum"
+                                     "var" "export" "module.exports"
+                                     "interface"
+                                     "declare")))))
+                 (_ (point)))))
+            ((pred (lambda (val)
+                     (string-match-p
+                      "[-!@#%^&*=><~|+/?:]"
+                      val)))
+             (skip-chars-backward "!@#%^&*=><~|\\-+/?:"))
+            ("." (skip-chars-backward ".")
+             (point))
+            ("}"
+             (when (= count-brackets 0)
+               (setq count-brackets (1+ count-brackets))
+               (forward-sexp -1)
+               (point)))
+            ((or "]" "'" "\"" "`")
+             (forward-sexp -1)
+             (point))
+            (_ (js-eval-backward-list)))
+        (setq pos (point)))
+      (when (and pos (> init-pos pos))
         (js-eval-forward-whitespace)
         pos))))
 
