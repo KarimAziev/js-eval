@@ -1047,11 +1047,15 @@ CALLBACK is function to be called with every node."
           (concat re (buffer-substring-no-properties pos (point)))
         re))))
 
-(defun js-eval-get-operator-at-point ()
-  "Forward and return operator at point as string."
+(defun js-eval-get-operator-at-point (&optional n)
+  "Forward or backward (if N is negative integer).
+Return operator at point as string."
   (let ((start (point)))
-    (when (> (skip-chars-forward "!@#%^&*=><~|\\-+/?:") 0)
-      (buffer-substring-no-properties start (point)))))
+    (if (and n (< n 0))
+        (when (< (skip-chars-backward "!@#%^&*=><~|\\-+/?:") 0)
+          (buffer-substring-no-properties (point) start))
+      (when (> (skip-chars-forward "!@#%^&*=><~|\\-+/?:") 0)
+        (buffer-substring-no-properties start (point))))))
 
 (defun js-eval-forward-angles ()
   "Forward angles at point and return string."
@@ -1193,7 +1197,7 @@ Return poisiton of arrow's end."
                              (p2 (re-search-forward "\\(\\*/\\)" nil t 1)))
                         (push (cons p1 p2) comments)))
                   (let* ((p1 (1- (point)))
-                         (p2 (point-at-eol)))
+                         (p2 (line-end-position)))
                     (push (cons p1 p2) comments))))))
           comments)))))
 
@@ -1845,7 +1849,7 @@ otherwise firstly expand BASE-URL to project directory."
 
 (defun js-eval-get-file-cache (cache-key)
   "Return value of CACHE-KEY from a variable `js-eval-files-cache'.
-CACHE-KEY should be a filename due to invalidation which uses modification time."
+CACHE-KEY should be a filename as modification time invalidate cache."
   (let* ((cache (gethash cache-key js-eval-files-cache))
          (cache-tick (and cache (plist-get cache :tick)))
          (tick (file-attribute-modification-time (file-attributes
@@ -2047,7 +2051,7 @@ The optional argument COUNT is a number that indicates the
                  (setq str-terminator ?/))
                (re-search-forward
                 (concat "\\([^\\]\\|^\\)" (string str-terminator))
-                (point-at-eol) t))
+                (line-end-position) t))
               ((nth 7 parse)
                (forward-line))
               ((or (nth 4 parse)
@@ -2809,7 +2813,7 @@ mapNodeBuiltins();")
     map))
 
 (defun js-eval-node-modules-bin-files ()
-  "Look up directory hierarchy for node_modules/.bin and return executable files."
+  "Return executable files found in node_modules/.bin."
   (when-let* ((node-modules
                (locate-dominating-file
                 default-directory
@@ -3365,7 +3369,7 @@ With ARG, do this that many times."
         end))))
 
 (defun js-eval-backward-list ()
-  "If text before point is close parenthesis move backward one balanced expression."
+  "Move backward one balanced expression and return new position."
   (when (looking-back "[)]" 0)
     (forward-sexp -1)
     (point)))
@@ -4154,11 +4158,146 @@ If CODE is non-nil, insert it at the beginning."
             (insert choice)))))
     (buffer-string)))
 
+(defun js-eval-backward-chars (chars)
+  "Backward CHARS and return substring or nil."
+  (let* ((word-end (point))
+         (word-start (progn (skip-chars-backward
+                             chars)
+                            (point))))
+    (when (> word-end word-start)
+      (buffer-substring-no-properties word-start word-end))))
+
+(defun js-eval--backward-node ()
+  "Go to the start of current node."
+  (let ((init-pos (point))
+        (pos))
+    (when (save-excursion
+            (js-eval-backward-whitespace)
+            (member (js-eval-get-prev-char) '(";" ",")))
+      (js-eval-re-search-backward "[,;]" nil t 1))
+    (let ((count-brackets 0))
+      (while (progn
+               (js-eval-backward-whitespace)
+               (pcase (js-eval-get-prev-char)
+                 ((pred (lambda (val)
+                          (string-match-p
+                           js-eval-regexp-name-set
+                           val)))
+                  (let ((word (js-eval-backward-chars js-eval-regexp-name)))
+                    (pcase word
+                      ("function"
+                       (js-eval-backward-whitespace)
+                       (when (or (equal "=" (js-eval-get-operator-at-point -1))
+                                 (member (js-eval-backward-chars
+                                          js-eval-regexp-name)
+                                         '("async" "declare")))
+                         (js-eval-backward-whitespace)
+                         (point)))
+                      ("return" nil)
+                      ((or "import"
+                           "const" "let" "class" "interface" "enum"
+                           "var" "export" "module.exports" "interface"
+                           "declare")
+                       (while (progn
+                                (js-eval-backward-whitespace)
+                                (member (js-eval-backward-chars
+                                         js-eval-regexp-name)
+                                        '("import"
+                                          "const" "let" "class" "interface"
+                                          "enum"
+                                          "var" "export" "module.exports"
+                                          "interface"
+                                          "declare")))))
+                      (_ (point)))))
+                 ((pred (lambda (val)
+                          (string-match-p
+                           "[-!@#%^&*=><~|+/?:]"
+                           val)))
+                  (skip-chars-backward "!@#%^&*=><~|\\-+/?:"))
+                 ("." (skip-chars-backward ".")
+                  (point))
+                 ("}"
+                  (when (= count-brackets 0)
+                    (setq count-brackets (1+ count-brackets))
+                    (forward-sexp -1)
+                    (point)))
+                 ((or "]" "'" "\"" "`")
+                  (forward-sexp -1)
+                  (point))
+                 (_ (js-eval-backward-list)))))
+      (setq pos (point))
+      (when (> init-pos pos)
+        (js-eval-forward-whitespace)
+        pos))))
+
+(defun js-eval-backward-node ()
+  "Go to the start of current node."
+  (interactive)
+  (js-eval--backward-node))
+
+(defun js-eval-forward-node ()
+  "Go to the end of current node."
+  (interactive)
+  (let ((pos (point)))
+    (pcase (js-eval-get-next-char)
+      ("," (forward-char 1)))
+    (js-eval-parse-node-at-point)
+    (when (and (equal pos (point))
+               (> (js-eval-forward-whitespace) 0))
+      (js-eval-forward-node))))
+
+(defun js-eval-export-it ()
+  "Go to the start of current node."
+  (interactive)
+  (save-excursion
+    (while (js-eval-backward-up-list))
+    (unless (member (save-excursion
+                      (js-eval-forward-whitespace)
+                      (js-eval-which-word))
+                    '("import"
+                      "const" "let" "class" "interface"
+                      "enum"
+                      "var" "export" "module.exports"
+                      "interface"
+                      "declare"))
+      (js-eval-backward-node))
+    (unless (member (js-eval-which-word) '("export"))
+      (insert "export" (if (looking-at "\s") "" " ")))))
+
+(defun js-eval-get-js-sexp-bounds ()
+  "Get sexp at point to eval."
+  (when-let* ((b (save-excursion
+                   (js-eval--backward-node)))
+              (e (point)))
+    (cons b (if (> (point-max) e)
+                (+ e 1)
+              e))))
+
 (defun js-eval-get-js-sexp ()
-	"Get sexp at point to eval."
+  "Get sexp at point to eval."
   (let* ((b (save-excursion
-              (backward-sexp)
-              (move-beginning-of-line nil)
+              (when (member (js-eval-get-prev-char) '(";"))
+                (forward-char -1))
+              (while (progn
+                       (js-eval-backward-whitespace)
+                       (pcase (js-eval-get-prev-char)
+                         ((pred (lambda (val)
+                                  (string-match-p
+                                   js-eval-regexp-name-set
+                                   val)))
+                          (skip-chars-backward js-eval-regexp-name))
+                         ((pred (lambda (val)
+                                  (string-match-p
+                                   "[!@#%^&*=><~|\\-+/?:]"
+                                   val)))
+                          (skip-chars-backward "!@#%^&*=><~|\\-+/?:"))
+                         ("." (skip-chars-backward "...")
+                          (point))
+                         ("]"
+                          (forward-sexp -1)
+                          (point))
+                         (")" (js-eval-backward-list))))
+                (js-eval-forward-whitespace))
               (point)))
          (e (point)))
     (buffer-substring-no-properties b (if (> (point-max) e)
@@ -4272,7 +4411,7 @@ IF NODE-MODULES-PATH passed, also expands dependencies to absolute filenames."
     (write-region content nil target-filename)))
 
 (defun js-eval-compile-files (files)
-  "Compile alist of FILES whose car is the source filename and cdr - the target."
+  "Compile FILES alistt whose car is the source filename and cdr - the target."
   (let ((node-modules-path
          (when js-eval-current-project-root
            (js-eval-join-when-exists
@@ -4305,9 +4444,7 @@ IF NODE-MODULES-PATH passed, also expands dependencies to absolute filenames."
                   (js-eval-get-prop imported-item :as-name)))))
      delimiter)))
 
-(defun js-eval-regenerate-imports (imports
-                                   &optional dir
-                                   node-modules-dir)
+(defun js-eval-regenerate-imports (imports &optional dir node-modules-dir)
 	"Regenerate IMPORTS using DIR as it's default DIR.
 NODE-MODULES-DIR is used to resolve dependencies."
   (let ((lines)
@@ -4346,7 +4483,8 @@ NODE-MODULES-DIR is used to resolve dependencies."
         (setq result
               (string-join
                (delete nil
-                       (list default named-imports)) ", "))
+                       (list default named-imports))
+               ", "))
         (setq transformed-path (js-eval-transform-import-path
                                 display-path
                                 dir node-modules-dir))
@@ -4379,10 +4517,18 @@ NODE-MODULES-DIR is used to resolve dependencies."
                   (region-beginning) (region-end)))))
 
 (defun js-eval-extract-code ()
-	"Extract code for evaluating."
-  (when-let ((init-code (or (js-eval-get-region)
-                            (js-eval-get-js-sexp))))
-    (let* ((ast (js-eval-parse-context-from-current-buffer))
+  "Extract code for evaluating."
+  (when-let* ((bounds (or
+                       (when (and (region-active-p)
+                                  (use-region-p))
+                         (cons (region-beginning)
+                               (region-end)))
+                       (js-eval-get-js-sexp-bounds)))
+              (init-code (string-trim (buffer-substring-no-properties
+                                       (car bounds)
+                                       (cdr bounds)))))
+    (let* ((ast (js-eval-parse-context-from-current-buffer (point-min)
+                                                           (car bounds)))
            (imports))
       (let ((codes `(,init-code))
             (included-codes)
