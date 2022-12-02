@@ -4750,8 +4750,8 @@ NODE-MODULES-PATH is full path to node_modules."
       (let ((msg (if (car result)
                      (cadr result)
                    (propertize (cadr result) 'face 'error))))
-        (js-eval-popup msg
-                         (when (car result) 'js-mode))))))
+        (js-eval-popup-inspect msg
+                               (when (car result) 'js-mode))))))
 
 (defun js-eval-buffer ()
   "Eval and compile current buffer."
