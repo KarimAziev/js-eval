@@ -87,7 +87,7 @@
 (defvar js-eval-popup-meta nil)
 (defvar js-eval-popup-switch-keymap
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "C-c o") #'js-eval-popup-open-inspector)
+    (define-key map (kbd "C-c C-o") #'js-eval-popup-open-inspector)
     map)
   "Keymap with commands to execute just before exiting.")
 
@@ -1795,7 +1795,7 @@ otherwise firstly expand BASE-URL to project directory."
         filepath)))))
 
 (defun js-eval-server-get-buffer ()
-	"Get buffer named `js-eval-server-buffer-name'."
+  "Get buffer named `js-eval-server-buffer-name'."
   (get-buffer js-eval-server-buffer-name))
 
 (defun js-eval-syntax-propertize (start end)
@@ -2074,7 +2074,7 @@ Result depends on syntax table's string quote character."
     (nth 3 (syntax-ppss (or position (point))))))
 
 (defun js-eval-resolve-module (dir &optional file)
-	"Resolve module FILE in DIR."
+  "Resolve module FILE in DIR."
   (when-let ((result (if file
                          (let ((default-directory (expand-file-name dir))
                                (found))
@@ -2152,7 +2152,7 @@ relative to BASE-URL if provided or project directory."
     (seq-sort-by (lambda (it) (length (car it))) #'> alist)))
 
 (defun js-eval-response-success (&rest props)
-	"Take :response from PROPS and set it to `js-eval-response'."
+  "Take :response from PROPS and set it to `js-eval-response'."
   (let*
       ((response
         (car
@@ -2289,7 +2289,7 @@ Plugins and presets used in options should exists in
   (setq js-eval-overlay-at nil))
 
 (defun js-eval-read-babel-config ()
-	"Read babel config from `js-eval-babel-config-string'."
+  "Read babel config from `js-eval-babel-config-string'."
   (with-temp-buffer
     (save-excursion (insert js-eval-babel-config-string))
     (let ((json-object-type 'alist)
@@ -2318,7 +2318,7 @@ Plugins and presets used in options should exists in
           items))
 
 (defun js-eval-get-config-dependencies ()
-	"Get dependencies for babel."
+  "Get dependencies for babel."
   (when-let ((config
               (js-eval-read-babel-config)))
     (let ((dependencies))
@@ -2330,7 +2330,7 @@ Plugins and presets used in options should exists in
                                                      dependencies))))))
 
 (defun js-eval-make-npm-install-command ()
-	"Make npm install command."
+  "Make npm install command."
   (when-let ((dependencies (js-eval-get-missing-dependencies)))
     (string-join (append '("npm install --save-dev") dependencies) "\s")))
 
@@ -2422,7 +2422,7 @@ Invoke CALLBACK without args."
     item))
 
 (defun js-eval-get-object-items (obj &optional parent-key)
-	"Return nested paths from OBJ, optionally with PARENT-KEY."
+  "Return nested paths from OBJ, optionally with PARENT-KEY."
   (js-eval-sort-object-props-by-pos
    (mapcar #'js-eval-normalize-object-prop-position
            (js-eval-get-object-keys obj parent-key))))
@@ -2609,11 +2609,11 @@ as for `re-search-forward'."
    "\s"))
 
 (defun js-eval-resolve-node-modules-dir (dir)
-	"Resolve node modules for DIR."
+  "Resolve node modules for DIR."
   (js-eval-resolve-module dir "node_modules"))
 
 (defun js-eval-node-modules-global ()
-	"Return path to global node modules."
+  "Return path to global node modules."
   (when-let ((dir (shell-command-to-string "npm config get prefix")))
     (setq dir (expand-file-name "lib/node_modules/" dir))
     (when (file-exists-p dir)
@@ -2672,7 +2672,7 @@ Value of allises is specified in variable `js-eval-project-aliases'."
     nil))
 
 (defun js-eval-server-eval-request-async (&optional payload-alist cb)
-	"Eval request async with PAYLOAD-ALIST with callback CB."
+  "Eval request async with PAYLOAD-ALIST with callback CB."
   (setq js-eval-callback cb)
   (setq js-eval-server-params payload-alist)
   (request "http://localhost:24885/eval"
@@ -2691,12 +2691,12 @@ Value of allises is specified in variable `js-eval-project-aliases'."
            :success #'js-eval-response-success))
 
 (defun js-eval-server-get-process ()
-	"Get process with name `js-eval-server-process-name'."
+  "Get process with name `js-eval-server-process-name'."
   (get-process js-eval-server-process-name))
 
 ;;;###autoload
 (defun js-eval-server-run ()
-	"Run js window server."
+  "Run js window server."
   (interactive)
   (if-let ((proc (js-eval-server-get-process)))
       (setq js-eval-server-status (process-status proc))
@@ -2799,7 +2799,7 @@ mapNodeBuiltins();")
 
 ;;;###autoload
 (defun js-eval-overlay-copy ()
-	"Copy after-string property from variable `js-eval-overlay-at'."
+  "Copy after-string property from variable `js-eval-overlay-at'."
   (interactive)
   (when-let ((str (overlay-get js-eval-overlay-at 'after-string)))
     (kill-new str)
@@ -2827,7 +2827,7 @@ mapNodeBuiltins();")
     commands))
 
 (defun js-eval-prettier-js-local-command ()
-	"Return full path to prettier executable in local node_modules dir."
+  "Return full path to prettier executable in local node_modules dir."
   (seq-find (lambda (it)
               (string= "prettier"
                        (file-name-base it)))
@@ -2881,7 +2881,7 @@ If CONTENT is not a string, instead of MODE-FN emacs-lisp-mode will be used."
 Display remains until next event is input.
 
 Persist popup if input is a key binding of a command
- `js-eval-popup-open-inspector'in `js-eval-popup-switch-keymap'.
+ `js-eval-popup-open-inspector' in `js-eval-popup-switch-keymap'.
 
 SETUP-ARGS can includes keymaps, syntax table, filename and function.
 See a function `js-eval-popup-open-inspector'."
@@ -2990,7 +2990,7 @@ If SETUP-ARGS contains syntax table, it will be used in the inspect buffer."
 
 ;;;###autoload
 (defun js-eval-popup-open-inspector ()
-	"Open or restore popup in a buffer `js-eval-popup-inspect-buffer-name'."
+  "Open or restore popup in a buffer `js-eval-popup-inspect-buffer-name'."
   (interactive)
   (apply #'js-eval-popup-inspect
          (or js-eval-popup-content "")
@@ -3033,7 +3033,7 @@ If SETUP-ARGS contains syntax table, it will be used in the inspect buffer."
                              path))
 
 (defun js-eval-extract-node-builins ()
-	"Extract node builins."
+  "Extract node builins."
   (let ((alist (js-eval-parse-object-from-string
                 (with-temp-buffer
                   (let ((process-environment (append '("NODE_NO_WARNINGS=1")
@@ -3217,7 +3217,7 @@ Second argument ARG-B is optional and can be passed later."
     (lambda (a b &rest others) (apply func (append `(,b ,a) others)))))
 
 (defun js-eval-sort-by-prop (prop items)
-	"Sort ITEMS by PROP."
+  "Sort ITEMS by PROP."
   (seq-sort-by (lambda (it)
                  (or (js-eval-get-prop it prop) -1))
                #'< (if (vectorp items)
@@ -3225,7 +3225,7 @@ Second argument ARG-B is optional and can be passed later."
                      items)))
 
 (defun js-eval--node-path (&optional dir)
-	"Return NODE-PATH string for DIR."
+  "Return NODE-PATH string for DIR."
   (let ((result (replace-regexp-in-string
                  "[:]+" ":"
                  (concat
@@ -3247,11 +3247,11 @@ Second argument ARG-B is optional and can be passed later."
     result))
 
 (defun js-eval--output (result file)
-	"Return RESULT when FILE is nil."
+  "Return RESULT when FILE is nil."
   (unless file result))
 
 (defun js-eval--shell-command-to-string (environ command)
-	"Execute COMMAND in environment ENVIRON."
+  "Execute COMMAND in environment ENVIRON."
   (with-temp-buffer
     (let ((process-environment
            (append
@@ -3432,7 +3432,7 @@ NODE is ."
                   (> node-end pos)))))))
 
 (defun js-eval-parse-context (&optional deep)
-	"Parse context.
+  "Parse context.
 Optional argument DEEP is whether to parse function declarations recoursively."
   (let ((top-scope)
         (scopes)
@@ -3729,7 +3729,7 @@ If optional argument WITH-PROPS is non-nil, propertize items."
           (js-eval-strip-object-props obj))))))
 
 (defun js-eval-forward-lists ()
-	"Forward lists at point."
+  "Forward lists at point."
   (let ((count)
         (pos (point))
         (end))
@@ -3745,7 +3745,7 @@ If optional argument WITH-PROPS is non-nil, propertize items."
       (goto-char end))))
 
 (defun js-eval-parse-object-from-string (content &optional with-props)
-	"Parse object from string CONTENT.
+  "Parse object from string CONTENT.
 If optional argument WITH-PROPS is non-nil, propertize items."
   (js-eval-with-temp-buffer
    (insert content)
@@ -4075,11 +4075,10 @@ If prettier failed, return STR."
 
 (defvar js-eval-result-keymap
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "C-c o") 'js-eval-visit-compiled)
     (define-key map (kbd "C-c C-o") 'js-eval-visit-compiled)))
 
 (defun js-eval-show-result (result &optional compiled-name)
-	"Show RESULT in overlay or popup.
+  "Show RESULT in overlay or popup.
 With COMPILED-NAME allow to jump to it."
   (require 'js)
   (setq result (when result (js-eval-comint-maybe-format-result result)))
@@ -4096,7 +4095,7 @@ With COMPILED-NAME allow to jump to it."
   result)
 
 (defun js-eval-transform-import-path (path dir &optional node-modules-path)
-	"Transform import PATH in DIR to absolute or relative.
+  "Transform import PATH in DIR to absolute or relative.
 Convert to absolute if NODE-MODULES-PATH is present and PATH is dependency."
   (cond ((or
           (js-eval-relative-p path)
@@ -4114,7 +4113,7 @@ Convert to absolute if NODE-MODULES-PATH is present and PATH is dependency."
 
 (defun js-eval-transform-import-path-abs (path dir &optional
                                                   node-modules-path)
-	"Transform PATH in DIR to absolute.
+  "Transform PATH in DIR to absolute.
 WIth NODE-MODULES-PATH expands also dependencies."
   (let ((result (cond ((assoc path (js-eval-extract-node-builins))
                        nil)
@@ -4308,21 +4307,21 @@ If CODE is non-nil, insert it at the beginning."
                                         e))))
 
 (defun js-eval-get-project-current-name (&optional root)
-	"Get name of ROOT or `js-eval-current-project-root'."
+  "Get name of ROOT or `js-eval-current-project-root'."
   (and (or root js-eval-current-project-root)
        (car (reverse
              (split-string
               (or root js-eval-current-project-root) "/" t)))))
 
 (defun js-eval-get-temp-project-dir (&optional root)
-	"Return tmep directory for project ROOT."
+  "Return tmep directory for project ROOT."
   (file-name-as-directory
    (expand-file-name
     (js-eval-get-project-current-name root)
     (temporary-file-directory))))
 
 (defun js-eval-get-temp-file-name (filename)
-	"Return temp name for FILENAME."
+  "Return temp name for FILENAME."
   (when-let* ((project-re (and js-eval-current-project-root
                                (regexp-quote
                                 js-eval-current-project-root)))
@@ -4385,7 +4384,7 @@ If optional CODE is non nil, use it as content of INIT-FILE."
 (defvar js-eval-files-modified-time-cache (make-hash-table :test 'equal))
 
 (defun js-eval-should-use-cache-p (source-file-name target-file-name)
-	"Check modification time of SOURCE-FILE-NAME.
+  "Check modification time of SOURCE-FILE-NAME.
 Also check if TARGET-FILE-NAME exists."
   (when-let ((cached (when (file-exists-p target-file-name)
                        (gethash source-file-name
@@ -4433,7 +4432,7 @@ IF NODE-MODULES-PATH passed, also expands dependencies to absolute filenames."
                    js-eval-files-modified-time-cache))))))
 
 (defun js-eval-import-to-fullname (imported-item &optional delimiter)
-	"Convert IMPORTED-ITEM to fullname divided with DELIMITER."
+  "Convert IMPORTED-ITEM to fullname divided with DELIMITER."
   (unless delimiter
     (setq delimiter " as "))
   (when imported-item
@@ -4448,7 +4447,7 @@ IF NODE-MODULES-PATH passed, also expands dependencies to absolute filenames."
      delimiter)))
 
 (defun js-eval-regenerate-imports (imports &optional dir node-modules-dir)
-	"Regenerate IMPORTS using DIR as it's default DIR.
+  "Regenerate IMPORTS using DIR as it's default DIR.
 NODE-MODULES-DIR is used to resolve dependencies."
   (let ((lines)
         (grouped-imports (js-eval-group-by :display-path imports))
@@ -4500,13 +4499,13 @@ NODE-MODULES-DIR is used to resolve dependencies."
     (string-join lines "\n")))
 
 (defun js-eval-comint-tokenise (code)
-	"Return tokens in string CODE."
+  "Return tokens in string CODE."
   (with-temp-buffer
     (save-excursion (insert code))
     (js-eval-get-tokens)))
 
 (defun js-eval-copy-item (item)
-	"Substring propertized with :start and :end ITEM without propertis."
+  "Substring propertized with :start and :end ITEM without propertis."
   (when-let ((start (js-eval-get-prop item :start))
              (end (js-eval-get-prop item :end)))
     (buffer-substring-no-properties start end)))
@@ -4579,7 +4578,7 @@ NODE-MODULES-DIR is used to resolve dependencies."
          "\n\n")))))
 
 (defun js-eval-eval-compiled (compiled-name)
-	"Eval file COMPILED-NAME."
+  "Eval file COMPILED-NAME."
   (when-let ((tmp (and (file-exists-p compiled-name)
                        (replace-regexp-in-string
                         "\\.[a-z]+$" "-temp.js"
@@ -4601,7 +4600,7 @@ NODE-MODULES-DIR is used to resolve dependencies."
 (defvar js-eval-use-window nil)
 
 (defun js-eval-eval-0 (arg)
-	"Eval code ARG."
+  "Eval code ARG."
   (js-eval-init-project)
   (let ((current-file buffer-file-name))
     (let* ((target-filename (js-eval-get-temp-file-name current-file)))
@@ -4666,7 +4665,7 @@ NODE-MODULES-DIR is used to resolve dependencies."
                              source-filename
                              target-filename
                              node-modules-path)
-	"Comile SOURCE-FILENAME to TARGET-FILENAME.
+  "Comile SOURCE-FILENAME to TARGET-FILENAME.
 NODE-MODULES-PATH is full path to node_modules."
   (interactive)
   (unless source-filename
@@ -4684,7 +4683,7 @@ NODE-MODULES-PATH is full path to node_modules."
 
 ;;;###autoload
 (defun js-eval-visit-compiled (&optional file)
-	"Find compiled version of FILE in temp directory."
+  "Find compiled version of FILE in temp directory."
   (interactive)
   (when-let ((compiled-file
               (or file
@@ -4700,7 +4699,7 @@ NODE-MODULES-PATH is full path to node_modules."
 
 ;;;###autoload
 (defun js-eval-eval (&optional arg)
-	"Eval ARG and show result."
+  "Eval ARG and show result."
   (interactive "P")
   (let ((result (js-eval-eval-0 arg)))
     (when (stringp result)
@@ -4712,7 +4711,7 @@ NODE-MODULES-PATH is full path to node_modules."
 (defun js-eval-compile-region-or-buffer ()
   "Compile active region or whole buffer and show it in popup."
   (interactive)
-  (js-eval-popup
+  (js-eval-popup-inspect
    (cadr
     (js-eval-babel-compile (or (js-eval-get-region)
                                (buffer-substring-no-properties
@@ -4722,7 +4721,7 @@ NODE-MODULES-PATH is full path to node_modules."
 
 ;;;###autoload
 (defun js-eval-cleanup ()
-	"Remove compiled files in temp directory."
+  "Remove compiled files in temp directory."
   (interactive)
   (mapc (lambda (it) (when-let ((buff (get-file-buffer it)))
                   (kill-buffer buff))
@@ -4731,7 +4730,7 @@ NODE-MODULES-PATH is full path to node_modules."
 
 ;;;###autoload
 (defun js-eval-toggle-use-window ()
-	"Toggle use window."
+  "Toggle use window."
   (interactive)
   (unless js-eval-use-window
     (unless (js-eval-server-get-process)
@@ -4740,7 +4739,7 @@ NODE-MODULES-PATH is full path to node_modules."
 
 ;;;###autoload
 (defun js-eval-current-file-with-node ()
-	"Eval current file with node."
+  "Eval current file with node."
   (interactive)
   (let ((infile buffer-file-name))
     (let ((result (with-temp-buffer
@@ -4761,7 +4760,7 @@ NODE-MODULES-PATH is full path to node_modules."
 
 ;;;###autoload
 (defun js-eval-ensure-babel-project ()
-	"Interactivelly create directory with babel and plugins."
+  "Interactivelly create directory with babel and plugins."
   (interactive)
   (when-let ((project-dir (replace-regexp-in-string
                            "/node_modules/?$" ""
