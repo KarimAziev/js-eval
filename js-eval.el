@@ -6,7 +6,7 @@
 ;; URL: https://github.com/KarimAziev/js-eval
 ;; Keywords: lisp, languages
 ;; Version: 0.1.1
-;; Package-Requires: ((emacs "27.1"))
+;; Package-Requires: ((emacs "27.1") (transient "0.3.7.50") (request "0.3.3"))
 
 ;; This file is NOT part of GNU Emacs.
 
@@ -22,6 +22,7 @@
 ;;
 ;; You should have received a copy of the GNU General Public License
 ;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 ;;; Commentary:
 
 ;; This file configures operations with eval
@@ -2282,7 +2283,7 @@ Plugins and presets used in options should exists in
 
 (defun js-eval-overlay-cleanup (&rest _args)
   "Remove overlay defined in `js-eval-overlay-at'."
-  (remove-hook 'before-change-functions 'js-eval-overlay-cleanup t)
+  (remove-hook 'before-change-functions #'js-eval-overlay-cleanup t)
   (when (and js-eval-overlay-at
              (overlayp js-eval-overlay-at))
     (delete-overlay js-eval-overlay-at))
@@ -2959,7 +2960,7 @@ If SETUP-ARGS contains syntax table, it will be used in the inspect buffer."
                 (progn  (save-excursion
                           (insert js-eval-popup-content))
                         (add-hook 'kill-buffer-hook
-                                  'js-eval-popup-minibuffer-select-window
+                                  #'js-eval-popup-minibuffer-select-window
                                   nil t)
                         (when mode-fn
                           (funcall mode-fn))
@@ -3014,7 +3015,7 @@ If SETUP-ARGS contains syntax table, it will be used in the inspect buffer."
                                      (re-search-forward
                                       "\n" nil t 1)
                                      (point))))))
-    (add-hook 'before-change-functions 'js-eval-overlay-cleanup nil t)
+    (add-hook 'before-change-functions #'js-eval-overlay-cleanup nil t)
     (when (> end (point-max))
       (setq end (point-max)))
     (setq js-eval-overlay-at (make-overlay start end (current-buffer) nil t))
@@ -4232,11 +4233,13 @@ If CODE is non-nil, insert it at the beginning."
         (js-eval-forward-whitespace)
         pos))))
 
+;;;###autoload
 (defun js-eval-backward-node ()
   "Go to the start of current node."
   (interactive)
   (js-eval--backward-node))
 
+;;;###autoload
 (defun js-eval-forward-node ()
   "Go to the end of current node."
   (interactive)
@@ -4248,6 +4251,7 @@ If CODE is non-nil, insert it at the beginning."
                (> (js-eval-forward-whitespace) 0))
       (js-eval-forward-node))))
 
+;;;###autoload
 (defun js-eval-export-it ()
   "Go to the start of current node."
   (interactive)
@@ -4752,6 +4756,7 @@ NODE-MODULES-PATH is full path to node_modules."
         (js-eval-popup-inspect msg
                                (when (car result) 'js-mode))))))
 
+;;;###autoload
 (defun js-eval-buffer ()
   "Eval and compile current buffer."
   (interactive)
@@ -4773,6 +4778,57 @@ NODE-MODULES-PATH is full path to node_modules."
         (setq command (concat "npm init -y && " command)))
       (when (yes-or-no-p (format "Run %s?" command))
         (js-eval-exec-in-dir command project-dir)))))
+
+(defun js-eval-current-file-compiled-p ()
+  "Return t if current file has compiled version in the temporarily directory."
+  (when-let ((file (when buffer-file-name
+                     (js-eval-get-temp-file-name
+                      buffer-file-name))))
+    (file-exists-p file)))
+
+;;;###autoload (autoload 'js-eval-transient "js-eval.el" nil t)
+(transient-define-prefix js-eval-transient ()
+  "Command dispatcher for `js-eval'."
+  [["Eval"
+    ("t" js-eval-toggle-use-window
+     :transient t
+     :description
+     (lambda ()
+       (concat "Window mode "
+               (if
+                   (bound-and-true-p js-eval-use-window)
+                   (propertize "(On)" 'face 'success)
+                 (propertize "(Off)" 'face 'error)))))
+    ("e" "Region or sexp" js-eval-eval)
+    ("b" "Buffer" js-eval-buffer)
+    ("l" "Cleanup" js-eval-cleanup)
+    ("c" "File with node" js-eval-current-file-with-node)]
+   ["Compile"
+    ("o" "File" js-eval-compile-file)
+    ("C" "Region or buffer" js-eval-compile-region-or-buffer)
+    ("v"  js-eval-visit-compiled
+     :description
+     (lambda ()
+       (if (js-eval-current-file-compiled-p)
+           (format
+            "Visit compiled file (%s)" (js-eval-get-temp-file-name
+                                        buffer-file-name))
+         "Visit compiled file "))
+     :inapt-if-not js-eval-current-file-compiled-p)]]
+  [["Results"
+    ("w" "Copy results" js-eval-overlay-copy
+     :inapt-if-not
+     (lambda ()
+       js-eval-overlay-at))
+    ("i" "Open inspector" js-eval-popup-open-inspector)]
+   ["Navigation"
+    ("x" "Export node at point" js-eval-export-it)
+    ("B" "Backward node" js-eval-backward-node)
+    ("f" "Forward node" js-eval-forward-node)]
+   ["Server"
+    ("S" "Run" js-eval-server-run)
+    ("r" "Clear" js-eval-server-clear)
+    ("E" "Setup" js-eval-ensure-babel-project)]])
 
 (provide 'js-eval)
 ;;; js-eval.el ends here
