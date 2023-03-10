@@ -37,7 +37,7 @@
   (require 'subr-x))
 
 (require 'request)
-
+(require 'transient)
 (defconst js-eval-file-ext-regexp
   (concat "\\.\\("
           (string-join
