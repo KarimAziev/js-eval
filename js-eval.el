@@ -4838,3 +4838,6 @@ NODE-MODULES-PATH is full path to node_modules."
 
 (provide 'js-eval)
 ;;; js-eval.el ends here
+;; Local Variables:
+;; checkdoc-verb-check-experimental-flag: nil
+;; End:
