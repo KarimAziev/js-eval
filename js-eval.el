@@ -4253,7 +4253,7 @@ If CODE is non-nil, insert it at the beginning."
 
 ;;;###autoload
 (defun js-eval-export-it ()
-  "Go to the start of current node."
+  "Add \"export\" before JavaScript code if not present."
   (interactive)
   (save-excursion
     (while (js-eval-backward-up-list))
@@ -4262,7 +4262,7 @@ If CODE is non-nil, insert it at the beginning."
                       (js-eval-which-word))
                     '("import"
                       "const" "let" "class" "interface"
-                      "enum"
+                      "enum" "type"
                       "var" "export" "module.exports"
                       "interface"
                       "declare"))
