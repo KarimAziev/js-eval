@@ -97,12 +97,8 @@ Argument PATH is the file path to check against the index file pattern."
 (defvar js-eval-popup-inspect-buffer-name "*js-eval-popup-insepct*"
   "Buffer name for JavaScript evaluation results popup.")
 
-(defvar js-eval-popup-momentary-buffer-name "*js-eval-popup*"
-  "Buffer name for temporary JavaScript evaluation output.")
 (defvar js-eval-server-params nil
   "Parameters for JavaScript evaluation server.")
-(defvar js-eval-popup-window-last-key nil
-  "Last key pressed in JS Eval popup window.")
 
 (defvar js-eval-popup-content nil
   "Content displayed in JavaScript evaluation popup.")
@@ -2590,14 +2586,6 @@ specific buffer."
   :keymap js-eval-popup-inspect-keymap
   :global nil)
 
-(defun js-eval-overlay-cleanup (&rest _args)
-  "Remove the evaluation overlay and clean up hooks."
-  (remove-hook 'before-change-functions #'js-eval-overlay-cleanup t)
-  (when (and js-eval-overlay-at
-             (overlayp js-eval-overlay-at))
-    (delete-overlay js-eval-overlay-at))
-  (setq js-eval-overlay-at nil))
-
 (defun js-eval-read-babel-config ()
   "Parse JSON from `js-eval-babel-config-string' into an alist."
   (with-temp-buffer
@@ -3195,13 +3183,6 @@ mapNodeBuiltins();"
     (message "Copied")
     str))
 
-(defvar js-eval-overlay-keymap
-  (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "q") 'js-eval-overlay-cleanup)
-    (define-key map (kbd "M-w") 'js-eval-overlay-copy)
-    map)
-  "Keymap for JavaScript evaluation overlays.")
-
 (defun js-eval-node-modules-bin-files ()
   "Evaluate Node.js module binaries in the current project."
   (when-let* ((node-modules
@@ -3280,55 +3261,6 @@ function MODE-FN."
       (font-lock-ensure)
       (buffer-string))))
 
-(defun js-eval-popup (content &rest setup-args)
-  "Display JavaScript evaluation results in a popup window.
-
-Argument CONTENT is a string to be displayed in the popup.
-
-Remaining arguments SETUP-ARGS are used for setting up the popup buffer and may
-include a mode function to fontify CONTENT."
-  (let ((buffer (get-buffer-create
-                 js-eval-popup-momentary-buffer-name))
-        (mode-fn (seq-find #'functionp setup-args)))
-    (setq js-eval-popup-content (if (or
-                                     mode-fn
-                                     (not (stringp content)))
-                                    (apply #'js-eval-popup-fontify
-                                           (list content mode-fn))
-                                  content))
-    (setq js-eval-popup-meta setup-args)
-    (with-current-buffer buffer
-      (with-current-buffer-window
-          buffer
-          (cons 'display-buffer-in-direction
-                '((window-height . window-preserve-size)))
-          (lambda (window _value)
-            (with-selected-window window
-              (setq header-line-format
-                    (substitute-command-keys "\\<js-eval-popup-switch-keymap>\
-Use `\\[js-eval-popup-open-inspector]' to open popup"))
-              (setq buffer-read-only t)
-              (let ((inhibit-read-only t))
-                (erase-buffer)
-                (js-eval-popup-mode)
-                (set-keymap-parent js-eval-popup-switch-keymap
-                                   (current-local-map))
-                (when js-eval-popup-content
-                  (insert js-eval-popup-content))
-                (unwind-protect
-                    (setq js-eval-popup-window-last-key
-                          (read-key-sequence ""))
-                  (quit-restore-window window 'kill)
-                  (if (lookup-key js-eval-popup-switch-keymap
-                                  js-eval-popup-window-last-key)
-                      (run-at-time '0.5 nil 'js-eval-popup-open-inspector)
-                    (setq unread-command-events
-                          (append (this-single-command-raw-keys)
-                                  unread-command-events)))
-                  (setq js-eval-popup-window-last-key nil)))))
-        (js-eval-popup-mode)
-        (insert js-eval-popup-content)))))
-
 (defun js-eval-popup-inspect (content &rest setup-args)
   "Display CONTENT in a popup buffer with optional syntax highlighting.
 
@@ -3397,44 +3329,6 @@ syntax table, and major mode function."
   (apply #'js-eval-popup-inspect
          (or js-eval-popup-content "")
          js-eval-popup-meta))
-
-(defun js-eval-overlay-show (&optional str pos-bounds keymap)
-  "Display a temporary overlay with optional STR and KEYMAP at POS-BOUNDS.
-
-Optional argument STR is the string to be displayed in the overlay.
-
-Optional argument POS-BOUNDS is a cons cell (START . END) or a single position
-specifying the bounds for the overlay.
-
-Optional argument KEYMAP is the keymap to be associated with the overlay."
-  (js-eval-overlay-cleanup)
-  (when-let ((value (and str
-                         (concat
-                          "\n"
-                          (if (text-properties-at 0 str)
-                              str
-                            (propertize str 'face 'org-code))
-                          "\n")))
-             (start (if (consp pos-bounds) (car pos-bounds)
-                      (or pos-bounds (point))))
-             (end (if (consp pos-bounds)
-                      (cdr pos-bounds)
-                    (or pos-bounds (save-excursion
-                                     (re-search-forward
-                                      "\n" nil t 1)
-                                     (point))))))
-    (add-hook 'before-change-functions #'js-eval-overlay-cleanup nil t)
-    (when (> end (point-max))
-      (setq end (point-max)))
-    (setq js-eval-overlay-at (make-overlay start end (current-buffer) nil t))
-    (overlay-put js-eval-overlay-at 'face 'org-code)
-    (overlay-put js-eval-overlay-at 'keymap
-                 (if keymap
-                     (make-composed-keymap js-eval-overlay-keymap keymap)
-                   js-eval-overlay-keymap))
-    (overlay-put js-eval-overlay-at 'priority 9999)
-    (overlay-put js-eval-overlay-at 'help-echo "Quit to exit")
-    (overlay-put js-eval-overlay-at 'after-string value)))
 
 (defun js-eval-relative-p (path)
   "Determine if PATH is relative using regex matching.
@@ -3766,23 +3660,6 @@ directory is to be evaluated."
           (directory-file-name parent)
         (file-relative-name parent)))))
 
-(defconst js-eval-var-keywords '("const" "var" "let"))
-
-(defconst js-eval-expression-keywords
-  (append js-eval-var-keywords
-            '("interface" "type" "class" "enum")))
-
-(defconst js-eval-delcaration-keywords
-  (append '("function" "function*") js-eval-expression-keywords))
-
-(defvar js-eval-angles-syntax-table
-  (let ((table (copy-syntax-table
-                js-eval-mode-syntax-table)))
-    (modify-syntax-entry ?< "(^" table)
-    (modify-syntax-entry ?> ")$" table)
-    table)
-  "Syntax table for parsing angle brackets in JavaScript evaluation.")
-
 (defun js-eval-syntax-propertize-regexp (end)
   "Highlight JavaScript regex literals up to END.
 
@@ -3798,20 +3675,6 @@ syntax properties."
         (put-text-property (match-beginning 1) end
                            'syntax-table (string-to-syntax "\"/"))
         (goto-char end)))))
-
-(defun js-eval-backward-angles ()
-  "Evaluate JavaScript code between angle brackets."
-  (when (looking-back ">" 0)
-    (let ((a)
-          (b (point))
-          (res))
-      (with-syntax-table js-eval-angles-syntax-table
-        (ignore-errors (forward-sexp -1))
-        (setq a (point))
-        (when (= b a)
-          (forward-char -1))
-        (setq res (buffer-substring-no-properties a b))
-        res))))
 
 (defun js-eval-get-prev-token-ignore-whitespace ()
   "Retrieve previous code token, skipping whitespace."
@@ -3969,14 +3832,6 @@ deeply. If nil, the parsing is shallow."
      (setq result (append result (js-eval-parse-context deep)))
      result)))
 
-(defun js-eval-find-parent-node ()
-  "Find and return the closest parent JavaScript node."
-  (let ((top-scope (save-excursion
-                     (js-eval-parse-scope (point-min) (point-max)))))
-    (seq-find
-     (apply-partially #'js-eval-find-by-node-pos (point))
-     top-scope)))
-
 (defun js-eval-parse-scope-inner (&optional start)
   "Parse JavaScript scope starting at optional START position.
 
@@ -4036,26 +3891,6 @@ parsing. If nil, parsing starts from the current point."
               (push args items))))))
     items))
 
-(defun js-eval-parse-from-string (&optional content fn &rest args)
-  "Parse JavaScript from string CONTENT, optionally applying function FN.
-
-Optional argument CONTENT is a string containing JavaScript code to be
-evaluated.
-
-Optional argument FN is a function to be called with the result of the
-JavaScript evaluation.
-
-Remaining arguments ARGS are passed to FN when it is called."
-  (js-eval-with-temp-buffer
-   (if-let ((start (js-eval-get-prop content :start)))
-       (progn (insert (make-string (1- start) ?\s))
-              (save-excursion (insert content)))
-     (insert content)
-     (goto-char (point-min)))
-   (if fn
-       (apply fn args)
-     (js-eval-parse-context t))))
-
 (defun js-eval-get-deep-prop (item &rest path)
   "Retrieve nested property value from ITEM by following PATH.
 
@@ -4070,16 +3905,6 @@ nested object or plist to traverse to get the desired value."
     (if path
         nil
       value)))
-
-(defun js-eval-get-token-at-point ()
-  "Extract token at current point in buffer."
-  (or
-   (js-eval-parse-regexp)
-   (js-eval-get-operator-at-point)
-   (js-eval-get-obj-key)
-   (when-let ((c (js-eval-get-next-char)))
-     (forward-char 1)
-     c)))
 
 (defun js-eval-parse-object-recoursive (&optional with-props)
   "Parse JavaScript objects recursively.
@@ -4290,47 +4115,6 @@ Argument ITEMS is a list of objects to be sorted by their position properties."
                        max))
                  #'< items)))
 
-(defun js-eval-transpile-alist (item &optional indent)
-  "Convert alist ITEM to JavaScript object with optional INDENT.
-
-Argument ITEM is an alist representing the JavaScript object to transpile.
-
-Optional argument INDENT is an integer specifying the current indentation level
-for formatting the output; it defaults to 0."
-  (unless indent (setq indent 0))
-  (let ((margin (if indent (make-string indent ?\s)
-                  (make-string indent ?\s))))
-    (concat margin (cond ((and item (consp item)
-                               (stringp (car item)))
-                          (let ((key (js-eval-strip-text-props (car item)))
-                                (value (and item (listp item) (cdr item))))
-                            (when (and (string-match-p "[-/]" key)
-                                       (not (string-match-p "['\"]" key)))
-                              (setq key (concat "'" key "'")))
-                            (format (concat "%s: %s") key
-                                    (string-trim
-                                     (js-eval-transpile-alist
-                                      value indent)))))
-                         ((vectorp item)
-                          (format "[ %s ]"
-                                  (mapconcat #'js-eval-transpile-alist
-                                             (append item nil) ", ")))
-                         ((listp item)
-                          (format (concat "{\n" margin
-                                          "%s" "\n" margin "}")
-                                  (mapconcat (lambda (it)
-                                               (concat
-                                                margin
-                                                (js-eval-transpile-alist
-                                                 it (1+ indent))))
-                                             item (concat ",\n" margin))))
-                         ((numberp item)
-                          (format "%s" item))
-                         ((eq item t)
-                          "true")
-                         ((stringp item)
-                          (prin1-to-string item))))))
-
 (defun js-eval-maybe-strip-quotes (item)
   "Strip quotes from ITEM if it starts and ends with them.
 
@@ -4473,17 +4257,6 @@ nested paths."
                                             :real-name path))))
           (push value results))))
     (flatten-list results)))
-
-(defun js-eval-vector-to-obj-indexed (items)
-  "Convert vector ITEMS to alist with indices as keys.
-
-Argument ITEMS is a vector that will be converted to an alist, where each
-element is paired with its index as a string. If ITEMS is not a vector, it is
-returned unchanged."
-  (if (vectorp items)
-      (seq-map-indexed (lambda (it i) (cons (format "%s" i) it))
-                       (append items nil))
-    items))
 
 (defun js-eval-strip-object-props (item)
   "Strip properties from JavaScript object ITEM.
@@ -4838,37 +4611,6 @@ Argument CHARS is a string of characters to skip backward over."
     (cons b (if (> (point-max) e)
                 (+ e 1)
               e))))
-
-(defun js-eval-get-js-sexp ()
-  "Extract JavaScript expression from buffer text."
-  (let* ((b (save-excursion
-              (when (member (js-eval-get-prev-char) '(";"))
-                (forward-char -1))
-              (while (progn
-                       (js-eval-backward-whitespace)
-                       (pcase (js-eval-get-prev-char)
-                         ((pred (lambda (val)
-                                  (string-match-p
-                                   js-eval-regexp-name-set
-                                   val)))
-                          (skip-chars-backward js-eval-regexp-name))
-                         ((pred (lambda (val)
-                                  (string-match-p
-                                   "[!@#%^&*=><~|\\/?:+-]"
-                                   val)))
-                          (skip-chars-backward "!@#%^&*=><~|\\-+/?:"))
-                         ("." (skip-chars-backward ".")
-                          (point))
-                         ("]"
-                          (forward-sexp -1)
-                          (point))
-                         (")" (js-eval-backward-list))))
-                (js-eval-forward-whitespace))
-              (point)))
-         (e (point)))
-    (buffer-substring-no-properties b (if (> (point-max) e)
-                                          (+ e 1)
-                                        e))))
 
 (defun js-eval-get-project-current-name (&optional root)
   "Retrieve the current project's name from its path.
