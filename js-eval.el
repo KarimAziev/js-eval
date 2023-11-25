@@ -154,7 +154,7 @@
 (defvar js-eval-json-hash (make-hash-table :test 'equal))
 
 (defvar js-eval--regexp-js-regexp
-  "\\([!]?+\\)?/\\(?:[^/[\\]\\|\\\\.\\|\\[\\(?:[^]\\]\\|\\\\.\\)*]\\)*\\(/?\\)"
+  "\\([!]*\\)/\\(?:[^/[\\]\\|\\\\.\\|\\[\\(?:[^]\\]\\|\\\\.\\)*]\\)*\\(/?\\)"
   "Regexp matching javascript regular expression.")
 
 (defvar js-eval-mode-syntax-table
@@ -579,56 +579,58 @@ Whitespace and comments are ignored."
           (children))
       (skip-chars-forward js-eval-regexp-name)
       (js-eval-forward-whitespace)
-      (while (pcase (js-eval-get-next-char-or-word)
-               ("from"
-                (skip-chars-forward js-eval-regexp-name)
-                (js-eval-forward-whitespace))
-               ("*"
-                (let ((beg (point))
-                      (as-name))
-                  (forward-char 1)
-                  (js-eval-forward-whitespace)
-                  (js-eval-get-obj-key)
-                  (js-eval-forward-whitespace)
-                  (setq as-name (js-eval-get-obj-key t))
-                  (js-eval-forward-whitespace)
-                  (setq namespace-import
-                        (js-eval-make-item as-name
-                                              :real-name "*"
-                                              :as-name as-name
-                                              :type 16
-                                              :var-type "import"
-                                              :start beg
-                                              :end (point)))))
-               ("type" (skip-chars-forward js-eval-regexp-name)
-                (js-eval-forward-whitespace)
-                (setq named-imports
-                      (js-eval-parse-es-import-braces)))
-               ("("
-                (js-eval-get-obj-key)
-                (setq dynamic-import (js-eval-parse-value)))
-               ("{"
-                (setq named-imports
-                      (js-eval-parse-es-import-braces)))
-               ("\"" (setq display-path (js-eval-path-at-point)))
-               ("'" (setq display-path (js-eval-path-at-point)))
-               ("=" (progn
-                      (forward-char 1)
-                      (js-eval-forward-whitespace)
-                      (js-eval-parse-value)
-                      nil))
-               (_ (when-let ((default (js-eval-get-word-if-valid))
-                             (beg (point)))
-                    (skip-chars-forward js-eval-regexp-name-set)
-                    (setq default-import
-                          (js-eval-make-item default
-                                                :real-name default
-                                                :type 1
-                                                :parent-end end
-                                                :parent-start start
-                                                :var-type "import"
-                                                :start beg
-                                                :end (point))))))
+      (while
+          (pcase (js-eval-get-next-char-or-word)
+            ("from"
+             (skip-chars-forward js-eval-regexp-name)
+             (js-eval-forward-whitespace))
+            ("*"
+             (let ((beg (point))
+                   (as-name))
+               (forward-char 1)
+               (js-eval-forward-whitespace)
+               (js-eval-get-obj-key)
+               (js-eval-forward-whitespace)
+               (setq as-name (js-eval-get-obj-key t))
+               (js-eval-forward-whitespace)
+               (setq namespace-import
+                     (js-eval-make-item as-name
+                                        :real-name "*"
+                                        :as-name as-name
+                                        :type 16
+                                        :var-type "import"
+                                        :start beg
+                                        :end (point)))))
+            ("type" (skip-chars-forward js-eval-regexp-name)
+             (js-eval-forward-whitespace)
+             (setq named-imports
+                   (js-eval-parse-es-import-braces)))
+            ("("
+             (js-eval-get-obj-key)
+             (setq dynamic-import (js-eval-parse-value)))
+            ("{"
+             (setq named-imports
+                   (js-eval-parse-es-import-braces)))
+            ("\"" (setq display-path (js-eval-path-at-point)))
+            ("'" (setq display-path (js-eval-path-at-point)))
+            ("=" (progn
+                   (forward-char 1)
+                   (js-eval-forward-whitespace)
+                   (js-eval-parse-value)
+                   nil))
+            (_
+             (when-let ((default (js-eval-get-word-if-valid))
+                        (beg (point)))
+               (skip-chars-forward js-eval-regexp-name)
+               (setq default-import
+                     (js-eval-make-item default
+                                        :real-name default
+                                        :type 1
+                                        :parent-end end
+                                        :parent-start start
+                                        :var-type "import"
+                                        :start beg
+                                        :end (point))))))
         (js-eval-forward-whitespace)
         (skip-chars-forward ",")
         (js-eval-forward-whitespace))
@@ -1300,10 +1302,12 @@ Default value for NTH is 1 and for POSITION - value of current point."
         (let ((children (js-eval-parse-scope-inner)))
           (js-eval-forward-whitespace "\s\t")
           (js-eval-make-item
-           func :children children
-           :value-end (point) :value-type "function"))
+           func
+           :children children
+           :value-end (point)
+           :value-type "function"))
         (js-eval-forward-whitespace "\s\t"))
-      (when (looking-at "\\(\n\\|\r\\)[\s\t\f]?+[?:|><,]")
+      (when (looking-at "\\(\n\\|\r\\)[\s\t\f]*[?:|><,]")
         (js-eval-forward-whitespace))
       (setq end (point))
       (when (looking-at "\\.")
@@ -1315,14 +1319,18 @@ Default value for NTH is 1 and for POSITION - value of current point."
       (if (> (length nodes) 1)
           (js-eval-make-item
            (string-join (reverse nodes) "\s")
-           :start start :end end)
+           :start start
+           :end end)
         (let ((val (pop nodes)))
           (if (listp val)
               (js-eval-make-item
                (mapconcat #'js-eval-stringify val "")
-               :start start :end end)
+               :start start
+               :end end)
             (js-eval-make-item
-             (format "%s" val) :start start :end end)))))))
+             (format "%s" val)
+             :start start
+             :end end)))))))
 
 (defun js-eval-get-obj-key (&optional with-props &rest args)
   "Forward symbol at point and return string.
@@ -1428,7 +1436,7 @@ Optional argument ID is will b."
         (scope-start)
         (scope-end)
         (stop))
-    (when (looking-at "[[({[]")
+    (when (looking-at "[({[]")
       (forward-sexp 1))
     (while (and
             (null stop)
@@ -1443,20 +1451,19 @@ Optional argument ID is will b."
                       (js-eval-re-search-forward open-chars-re nil t 1))
                 (forward-char -1)
                 (setq scope-end
-                      (when (looking-at "[[({[]")
+                      (when (looking-at "[({[]")
                         (forward-sexp 1)
                         (setq scope-end (point)))))
-              (cond
-               ((and scope-start search-point
-                     (> search-point scope-start))
-                (if scope-end
-                    (goto-char scope-end)
-                  (goto-char scope-start)))
-               ((and search-point)
-                (goto-char search-point)
-                (skip-chars-backward stop-chars)
-                (setq stop t)))))
-      (if (looking-at "[[({[]")
+              (cond ((and scope-start search-point
+                          (> search-point scope-start))
+                     (if scope-end
+                         (goto-char scope-end)
+                       (goto-char scope-start)))
+                    ((and search-point)
+                     (goto-char search-point)
+                     (skip-chars-backward stop-chars)
+                     (setq stop t)))))
+      (if (looking-at "[({[]")
           (forward-sexp 1)
         (setq stop t)))
     (and (looking-at stop-chars)
@@ -1486,7 +1493,7 @@ If value of DEEP is not nil, return list."
          (setq func-type
                (buffer-substring-no-properties node-start node-end))
          (js-eval-forward-whitespace)
-         (when (looking-at "*")
+         (when (looking-at "\\*")
            (setq func-type (concat func-type "*"))
            (forward-char 1))
          (setq id-pos (point))
@@ -2824,7 +2831,8 @@ mapNodeBuiltins();")
               (commands
                (seq-filter #'file-executable-p
                            (and (file-exists-p exec-dir)
-                                (directory-files-recursively exec-dir ".")))))
+                                (directory-files-recursively exec-dir
+                                                             directory-files-no-dot-files-regexp)))))
     commands))
 
 (defun js-eval-prettier-js-local-command ()
@@ -3516,8 +3524,7 @@ Optional argument DEEP is whether to parse function declarations recoursively."
                              (goto-char prev-token-pos)
                              (js-eval-backward-whitespace)
                              (js-eval-backward-list)
-                             (skip-chars-backward js-eval-regexp-name-set)
-                             ;; (message "1")
+                             (skip-chars-backward js-eval-regexp-name)
                              (let ((args
                                     (or
                                      (js-eval-parse-arguments)
@@ -3530,12 +3537,11 @@ Optional argument DEEP is whether to parse function declarations recoursively."
                                (append args children)))
                             ((and (equal prev-token "(")
                                   looking-at-brackets)
-                             (message "2")
                              (goto-char prev-token-pos)
-                             (save-excursion (js-eval-parse-arguments)))
+                             (save-excursion
+                               (js-eval-parse-arguments)))
                             ((and (equal prev-token ")")
                                   looking-at-brackets)
-                             (message "3")
                              (let* ((body (save-excursion
                                             (js-eval-parse-scope-inner)))
                                     (args (progn (goto-char (1+ prev-token-pos))
@@ -3544,8 +3550,8 @@ Optional argument DEEP is whether to parse function declarations recoursively."
                                (append args body)))
                             ((and looking-at-brackets
                                   (equal prev-token "="))
-                             (message "4")
-                             (save-excursion (js-eval-parse-object))))))
+                             (save-excursion
+                               (js-eval-parse-object))))))
             (if (listp args)
                 (setq items (append items args))
               (push args items))))))
@@ -4294,10 +4300,10 @@ If CODE is non-nil, insert it at the beginning."
                           (skip-chars-backward js-eval-regexp-name))
                          ((pred (lambda (val)
                                   (string-match-p
-                                   "[!@#%^&*=><~|\\-+/?:]"
+                                   "[!@#%^&*=><~|\\/?:+-]"
                                    val)))
                           (skip-chars-backward "!@#%^&*=><~|\\-+/?:"))
-                         ("." (skip-chars-backward "...")
+                         ("." (skip-chars-backward ".")
                           (point))
                          ("]"
                           (forward-sexp -1)
@@ -4390,13 +4396,13 @@ If optional CODE is non nil, use it as content of INIT-FILE."
 (defun js-eval-should-use-cache-p (source-file-name target-file-name)
   "Check modification time of SOURCE-FILE-NAME.
 Also check if TARGET-FILE-NAME exists."
-  (when-let ((cached (when (file-exists-p target-file-name)
-                       (gethash source-file-name
-                                js-eval-files-modified-time-cache)))
+  (when-let ((cached
+              (when (file-exists-p target-file-name)
+                (gethash source-file-name
+                         js-eval-files-modified-time-cache)))
              (modified-time (file-attribute-modification-time
                              (file-attributes source-file-name 'string))))
-    (equal cached modified-time))
-  nil)
+    (equal cached modified-time)))
 
 (defun js-eval--compile-file (source-filename
                               target-filename
