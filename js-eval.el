@@ -38,6 +38,8 @@
 
 (require 'request)
 (require 'transient)
+(require 'json)
+
 (defconst js-eval-file-ext-regexp
   (concat "\\.\\("
           (string-join
@@ -85,7 +87,6 @@ FILE name if it is not already present."
 Argument PATH is the file path to check against the index file pattern."
   (js-eval-string-match-p js-eval-file-index-regexp path))
 
-(require 'json)
 
 (defvar js-eval-popup-inspect-keymap
   (let ((map (make-sparse-keymap)))
@@ -94,7 +95,7 @@ Argument PATH is the file path to check against the index file pattern."
     map)
   "Keymap for JS evaluation pop-up inspection commands.")
 
-(defvar js-eval-popup-inspect-buffer-name "*js-eval-popup-insepct*"
+(defvar js-eval-popup-inspect-buffer-name "*js-eval-popup-inspect*"
   "Buffer name for JavaScript evaluation results popup.")
 
 (defvar js-eval-server-params nil
@@ -206,16 +207,6 @@ files to include during the evaluation process."
   :group 'js-eval
   :type '(repeat string))
 
-(defconst js-eval-file-ext-regexp
-  (concat "\\.\\("
-          (string-join
-           '("\\(d\\.\\)?tsx?"
-             "jsx" "es6" "es"
-             "mjs" "js" "cjs" "ls"
-             "sjs" "iced" "liticed" "json")
-           "\\|")
-          "\\)\\'")
-  "Regexp matching js, jsx and ts extensions files.")
 
 (defvar js-eval-json-hash (make-hash-table :test 'equal)
   "Hash table for storing JSON evaluation results.")
@@ -3274,11 +3265,11 @@ syntax table, and major mode function."
         (stx-table (seq-find #'syntax-table-p setup-args))
         (mode-fn (seq-find #'functionp setup-args)))
     (setq js-eval-popup-content (if (or
-                                       mode-fn
-                                       (not (stringp content)))
-                                      (apply #'js-eval-popup-fontify
-                                             (list content mode-fn))
-                                    content))
+                                     mode-fn
+                                     (not (stringp content)))
+                                    (apply #'js-eval-popup-fontify
+                                           (list content mode-fn))
+                                  content))
     (with-current-buffer buffer
       (with-current-buffer-window
           buffer
@@ -3290,6 +3281,7 @@ syntax table, and major mode function."
               (let ((inhibit-read-only t))
                 (erase-buffer)
                 (js-eval-popup-inspect-mode)
+                (visual-line-mode 1)
                 (progn  (save-excursion
                           (insert js-eval-popup-content))
                         (add-hook 'kill-buffer-hook
