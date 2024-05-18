@@ -6,7 +6,8 @@
 ;; URL: https://github.com/KarimAziev/js-eval
 ;; Keywords: lisp, languages
 ;; Version: 0.1.1
-;; Package-Requires: ((emacs "27.1") (transient "0.3.7.50") (request "0.3.3"))
+;; Package-Requires: ((emacs "27.1") (transient "0.5.3") (request "0.3.2"))
+;; SPDX-License-Identifier: GPL-3.0-or-later
 
 ;; This file is NOT part of GNU Emacs.
 
@@ -37,8 +38,12 @@
   (require 'subr-x))
 
 (require 'request)
+
 (require 'transient)
 (require 'json)
+
+(declare-function ansi-color-filter-region "ansi-color")
+(declare-function ansi-color-apply-on-region "ansi-color")
 
 (defconst js-eval-file-ext-regexp
   (concat "\\.\\("
@@ -90,8 +95,8 @@ Argument PATH is the file path to check against the index file pattern."
 
 (defvar js-eval-popup-inspect-keymap
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "C-x 0") 'kill-this-buffer)
-    (define-key map (kbd "C-c C-o") 'js-eval-popup-maybe-find-file)
+    (define-key map (kbd "C-x 0") #'kill-this-buffer)
+    (define-key map (kbd "C-c C-o") #'js-eval-visit-compiled)
     map)
   "Keymap for JS evaluation pop-up inspection commands.")
 
@@ -120,7 +125,28 @@ Argument PATH is the file path to check against the index file pattern."
   "List of aliases for evaluating JavaScript code.")
 
 (defvar js-eval-util-string
-  "module.exports = __js_eval__ = function (path, eoe, outputPath) { result = eval(require('fs').readFileSync(path, { encoding: 'utf8' })); stringify = function (thingToStringify, isFunctionFull, maxLengthForStrings) { class Serialize { constructor({ thing, verboseFunctions, maxStringLength }) { this.seen = []; this.thing = thing; this.verboseFunctions = verboseFunctions; this.maxStringLength = maxStringLength; this.circular = JSON.stringify('#<Circular>'); this.isFunction = this.isFunction.bind(this); this.isString = this.isString.bind(this); this.isArray = this.isArray.bind(this); this.isBoolean = this.isBoolean.bind(this); this.isNumber = this.isNumber.bind(this); this.isWindow = this.isWindow.bind(this); this.isWindowNode = this.isWindowNode.bind(this); this.isDate = this.isDate.bind(this); this.tryStringify = this.tryStringify.bind(this); this.annotateFunction = this.annotateFunction.bind(this); this.stringify = this.stringify.bind(this); this.serialize = this.serialize.bind(this); this.tryStorage = this.tryStorage.bind(this); this.annotateFn2 = this.annotateFn2.bind(this); } static makeSerialize(params) { return new Serialize(params); } seen; thing; maxStringLength; verboseFunctions; circular = JSON.stringify('#<Circular>'); isFunction(v) { return v instanceof Function || typeof v === 'function'; } removeComments(str) { return str.replace(/\\/\\*[\\s\\S]*?\\*\\/|\\/\\/.*/g, '').trim(); } isString(v) { return typeof v === 'string'; } isArray(v) { return v instanceof Array || Array.isArray(v); } isNumber(v) { return typeof v === 'number'; } isBoolean(v) { return typeof v === 'boolean'; } isWindow(it) { return globalThis.window && globalThis.window === it; } isWindowNode(v) { return ( globalThis.window && globalThis.window.Node != null && v instanceof globalThis.window.Node ); } isDate(v) { return Object.prototype.toString.call(v) === '[object Date]'; } annotateFunction(str) { let parts = this.removeComments(str.toString()).split('').reverse(); let processed = []; let curr; let bracketsOpen = 0; let bracketsClosed = 0; let openCount = 0; let closedCount = 0; let result; while ((curr = !result && parts.pop())) { if (curr === '(') { openCount += 1; } else if (curr === ')') { closedCount += 1; } if (openCount > 0) { processed.push(curr); if (curr === '{') { bracketsOpen += 1; } else if (curr === '}') { bracketsClosed += 1; } } result = result || (bracketsOpen === bracketsClosed && openCount === closedCount && openCount > 0) ? processed.join('') : undefined; } return result ? 'function'.concat(result).concat('{}') : this.annotateFn2(str); } annotateFn2(fn) { const name = fn.name || fn.toString() || ''; const len = fn.length || 0; let idx = 0; let list; list = new Array(len); while (idx < len) { list[idx] = `arg${idx}`; idx += 1; } return 'function ' + name + '(' + list.join(', ') + ') {}'; } stringify(obj) { if (this.isBoolean(obj)) { return obj.toString(); } else if (obj === undefined) { return 'undefined'; } else if (obj === null) { return 'null'; } else if (this.isNumber(obj)) { return obj.toString(); } else if (this.isString(obj)) { return this.maxStringLength && obj.length > this.maxStringLength ? this.tryStringify(obj.substring(0, 100).concat('...')) : JSON.stringify(obj); } else if (this.isWindowNode(obj)) { return this.tryStringify(obj); } else if (this.isFunction(obj)) { return this.verboseFunctions ? obj.toString().replace(/{\\s\\[native code\\]\\s}/g, '{}') : this.annotateFunction(obj); } else if (this.isDate(obj)) { return this.tryStringify(obj); } else if (this.isArray(obj)) { if (this.seen.indexOf(obj) >= 0) { return this.circular; } else { this.seen.push(obj); return `[${obj.map(this.serialize).join(', ')}]`; } } else { if (this.seen.indexOf(obj) >= 0) { return this.circular; } else { this.seen.push(obj); const pairs = []; for (let key in obj) { if ( obj && obj.hasOwnProperty && this.isFunction(obj.hasOwnProperty) && obj.hasOwnProperty(key) ) { let pair = this.stringify(key) + ': '; pair += this.serialize(obj[key]); pairs.push(pair); } } return `{ ${pairs.join(', ')} }`; } } } tryStorage(storage, storageType) { return this.stringify({}); } serialize(...args) { const it = args.length > 0 ? args[0] : this.thing; if (!this.isWindow(it)) { return this.stringify(it); } if (this.seen.indexOf(it) >= 0) { return this.circular; } else { this.seen.push(it); } const storageMock = { sessionStorage: this.tryStorage, localStorage: this.tryStorage, }; const res = Object.keys(it).reduce((pairs, key) => { const value = storageMock[key] ? storageMock[key]() : this.isWindow(it[key]) ? this.circular : this.stringify(it[key]); pairs.push(`${this.tryStringify(key)}: ${value}`); return pairs; }, []); return `{ ${res.join(', ')} }`; } tryStringify(it) { let result; try { result = JSON.stringify(it); } catch (error) { result = JSON.stringify(error.message || error); } return result; } } return Serialize.makeSerialize({ thing: thingToStringify, verboseFunctions: isFunctionFull, maxStringLength: maxLengthForStrings, }).serialize(); }; write = function (obj) { if (outputPath) { if (obj instanceof Buffer) { require('fs').writeFileSync(outputPath, obj); } else if (obj && 'function' === typeof obj.pipe) { obj.pipe(require('fs').createWriteStream(outputPath)); } } else { console.log(stringify(obj)); } process.stdout.write(eoe); }; if (result && 'function' === typeof result.then) { result.then(write, write); } else { write(result); } };"
+  "(function (path, eoe, outputPath) {
+  (function(obj) {
+    if (outputPath) {
+      if (obj instanceof Buffer) {
+        require('fs').writeFileSync(outputPath, obj);
+      } else if (obj && 'function' === typeof obj.pipe) {
+        obj.pipe(require('fs').createWriteStream(outputPath));
+      }
+    } else {
+      console.log(
+        require('util').inspect(obj, {
+          compact: false,
+          depth: 20,
+          breakLength: 120
+        }),
+      );
+    }
+    process.stdout.write(eoe);
+  })((function() {
+    return eval(require('fs').readFileSync(path, { encoding: 'utf8' }));
+  })());
+})"
   "JavaScript utility to evaluate and serialize expressions.")
 
 (defvar js-eval-server-process-name "emacs-jsdom-run"
@@ -2565,6 +2591,9 @@ meaning it will be available across all buffers once enabled."
   :lighter " js-eval-popup"
   :keymap js-eval-popup-switch-keymap
   :global nil)
+(defvar js-ts-mode-hook)
+(defvar js-base-mode-hook)
+(defvar js-mode-hook)
 
 (define-minor-mode js-eval-popup-inspect-mode
   "Enable JavaScript evaluation and inspection popup.
@@ -2575,7 +2604,17 @@ manipulate the inspection interface. This mode is global and does not target a
 specific buffer."
   :lighter " js-eval-popup"
   :keymap js-eval-popup-inspect-keymap
-  :global nil)
+  :global nil
+  (cond ((and (fboundp 'treesit-ready-p)
+              (treesit-ready-p 'javascript)
+              (fboundp 'js-ts-mode))
+         (let ((js-ts-mode-hook)
+               (js-base-mode-hook))
+           (js-ts-mode)))
+        (t
+         (let ((js-mode-hook)
+               (js-base-mode-hook))
+           (js-mode)))))
 
 (defun js-eval-read-babel-config ()
   "Parse JSON from `js-eval-babel-config-string' into an alist."
@@ -2950,16 +2989,15 @@ saved."
   (string-join
    (delete nil (append
                 `(,(and js-eval-babel-node-modules-path
-                        (concat "NODE_PATH="
-                                js-eval-babel-node-modules-path)))
+                    (concat "NODE_PATH="
+                     js-eval-babel-node-modules-path)))
                 `(,(expand-file-name ".bin/babel"
-                                     js-eval-babel-node-modules-path)
+                    js-eval-babel-node-modules-path)
                   ,source-file)
                 `,(and target-file (list "--out-file" target-file))
                 (list "--config-file"
                       (concat (temporary-file-directory)
-                              ".babelrc"))
-                (list "&> /dev/null")))
+                              ".babelrc"))))
    "\s"))
 
 (defun js-eval-resolve-node-modules-dir (dir)
@@ -3042,19 +3080,22 @@ the evaluation."
   (setq js-eval-callback cb)
   (setq js-eval-server-params payload-alist)
   (request "http://localhost:24885/eval"
-           :type "POST"
-           :data (json-encode payload-alist)
-           :headers
-           `(("accept" . "application/json")
-             ("content-type" . "application/json"))
-           :parser 'json-read
-           :error
-           #'(lambda (&rest args)
-               (message "Got error: %S" (plist-get args :error-thrown)))
-           :complete (lambda (&rest _)
-                       (display-buffer
-                        (get-buffer-create js-eval-server-buffer-name)))
-           :success #'js-eval-response-success))
+    :type "POST"
+    :data (json-encode payload-alist)
+    :headers
+    `(("accept" . "application/json")
+      ("content-type" . "application/json"))
+    :parser 'json-read
+    :error
+    #'(lambda (&rest args)
+        (message "Got error: %S" (plist-get args :error-thrown)))
+    :complete (lambda (&rest _)
+                (let ((buff
+                       (get-buffer-create js-eval-server-buffer-name)))
+                  (unless (get-buffer-window buff)
+                    (with-selected-window (js-eval--get-other-wind)
+                      (pop-to-buffer-same-window buff)))))
+    :success #'js-eval-response-success))
 
 (defun js-eval-server-get-process ()
   "Retrieve the process named `js-eval-server-process-name'."
@@ -3262,14 +3303,8 @@ Remaining arguments SETUP-ARGS are used to configure the popup buffer's keymaps,
 syntax table, and major mode function."
   (let ((buffer (get-buffer-create js-eval-popup-inspect-buffer-name))
         (keymaps (seq-filter #'keymapp setup-args))
-        (stx-table (seq-find #'syntax-table-p setup-args))
-        (mode-fn (seq-find #'functionp setup-args)))
-    (setq js-eval-popup-content (if (or
-                                     mode-fn
-                                     (not (stringp content)))
-                                    (apply #'js-eval-popup-fontify
-                                           (list content mode-fn))
-                                  content))
+        (stx-table (seq-find #'syntax-table-p setup-args)))
+    (setq js-eval-popup-content content)
     (with-current-buffer buffer
       (with-current-buffer-window
           buffer
@@ -3287,8 +3322,6 @@ syntax table, and major mode function."
                         (add-hook 'kill-buffer-hook
                                   #'js-eval-popup-minibuffer-select-window
                                   nil t)
-                        (when mode-fn
-                          (funcall mode-fn))
                         (use-local-map
                          (let ((map (copy-keymap
                                      js-eval-popup-inspect-keymap)))
@@ -3297,9 +3330,9 @@ syntax table, and major mode function."
                             (lambda ()
                               (if buffer-read-only
                                   (define-key map (kbd "q")
-                                              'kill-this-buffer)
+                                              #'kill-this-buffer)
                                 (define-key map (kbd "q")
-                                            'self-insert-command)))
+                                            #'self-insert-command)))
                             t)
                            (when keymaps
                              (setq map (make-composed-keymap
@@ -3471,20 +3504,24 @@ Argument BODY is a string containing the code to be compiled by Babel."
         (temp-compiled-file (concat (temporary-file-directory)
                                     (make-temp-name "script") ".js"))
         (result)
-        (command))
+        (command)
+        (status))
     (with-temp-file temp-file
       (insert body)
       (write-region nil nil temp-file)
       (setq command
             (js-eval-make-babel-command
              temp-file temp-compiled-file))
-      (message command)
       (with-output-to-temp-buffer (current-buffer)
-        (shell-command command)))
+        (setq status (shell-command command))))
     (setq result (with-temp-buffer
-                   (insert-file-contents temp-compiled-file nil)
-                   (buffer-string)))
-    (list 0 result)))
+                     (insert-file-contents temp-compiled-file nil)
+                     (buffer-string)))
+    (when (zerop status)
+      (setq result (with-temp-buffer
+                     (insert-file-contents temp-compiled-file nil)
+                     (buffer-string)))
+      (list 0 result))))
 
 (defun js-eval-join-when-exists (&rest args)
   "Join ARGS into a path if it exists.
@@ -3622,7 +3659,7 @@ the remaining elements are the arguments to pass to it."
             js-eval-current-alias nil))
     (setq js-eval-current-project-root root)
     (setq js-eval-aliases (delete-dups
-                              (js-eval-get-aliases)))
+                           (js-eval-get-aliases)))
     (when js-eval-current-alias
       (unless (member js-eval-current-alias js-eval-aliases)
         (setq js-eval-current-alias nil)))
@@ -4375,12 +4412,9 @@ Argument STR is a string to be formatted."
           (substring (cadr result) (length prefix))
         str))))
 
-(defvar js-eval-result-keymap
-  (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "C-c C-o") 'js-eval-visit-compiled))
-  "Keymap for JavaScript evaluation results interaction.")
 
 (defun js-eval-show-result (result &optional compiled-name)
+
   "Display JavaScript evaluation RESULT or visit compiled file.
 
 Argument RESULT is the value to be shown after JavaScript evaluation.
@@ -4389,16 +4423,17 @@ Optional argument COMPILED-NAME is the name of the compiled file to visit if
 RESULT is nil."
   (require 'js)
   (setq result (when result (js-eval-comint-maybe-format-result result)))
-  (cond
-   ((and (null result)
-         (null compiled-name))
-    (message "No result and compiled file"))
-   ((and (null result)
-         compiled-name)
-    (if (file-exists-p compiled-name)
-        (js-eval-visit-compiled compiled-name)
-      (message "%s doesn't exists" compiled-name)))
-   (t (js-eval-popup-inspect result 'js-mode js-eval-result-keymap)))
+  (cond ((and (null result)
+              (null compiled-name))
+         (message "No result and compiled file"))
+        ((and (null result)
+              compiled-name)
+         (if (file-exists-p compiled-name)
+             (js-eval-visit-compiled compiled-name)
+           (message "%s doesn't exists" compiled-name)))
+        (t
+         (with-selected-window (selected-window)
+           (js-eval-popup-inspect result))))
   result)
 
 (defun js-eval-transform-import-path (path dir &optional node-modules-path)
@@ -4679,16 +4714,16 @@ buffer before collecting imports. If nil, the buffer's content is used as is."
             (setq imports
                   (seq-remove
                    (lambda (it) (or
-                            (string= it file)
-                            (member it files)
-                            (member it processed-files)
-                            (string-match-p
-                             "/node_modules/" it)
-                            (null
-                             (when-let ((ext
-                                         (file-name-extension
-                                          it)))
-                               (member ext '("ts" "js" "jsx" "tsx" "json"))))))
+                                 (string= it file)
+                                 (member it files)
+                                 (member it processed-files)
+                                 (string-match-p
+                                  "/node_modules/" it)
+                                 (null
+                                  (when-let ((ext
+                                              (file-name-extension
+                                               it)))
+                                    (member ext '("ts" "js" "jsx" "tsx" "json"))))))
                    real-paths))
             (setq files (append files imports))
             (push file processed-files)))))
@@ -4712,10 +4747,8 @@ cache."
                              (file-attributes source-file-name 'string))))
     (equal cached modified-time)))
 
-(defun js-eval--compile-file (source-filename
-                              target-filename
-                              &optional
-                              node-modules-path)
+(defun js-eval--compile-file (source-filename target-filename &optional
+                                              node-modules-path)
   "Compile JavaScript file SOURCE-FILENAME to TARGET-FILENAME.
 
 Argument SOURCE-FILENAME is the path to the source file to be compiled.
@@ -4733,7 +4766,7 @@ it defaults to nil."
     (setq parent-dir (file-name-directory target-filename))
     (unless (file-exists-p parent-dir)
       (make-directory parent-dir t))
-    (write-region content nil target-filename)))
+    (write-region content nil target-filename nil nil nil nil)))
 
 (defun js-eval-compile-files (files)
   "Compile JavaScript FILES if not cached.
@@ -4920,6 +4953,8 @@ the substring."
                   code))
          "\n\n")))))
 
+
+
 (defun js-eval-eval-compiled (compiled-name)
   "Execute JavaScript code from a compiled file.
 
@@ -4930,8 +4965,7 @@ JavaScript code to be evaluated."
                         "\\.[a-z]+$" "-temp.js"
                         compiled-name))))
     (with-temp-file tmp
-      (insert js-eval-util-string)
-      (insert (format "__js_eval__('%s', '', '%s')" compiled-name "")))
+      (insert js-eval-util-string (format "('%s', '', '%s')" compiled-name "")))
     (setq js-eval-node-path (js-eval--node-path default-directory))
     (js-eval--output
      (js-eval--shell-command-to-string
@@ -4976,7 +5010,7 @@ the function prompts the user to input the code."
           (when-let ((compiled-code (cadr (js-eval-babel-compile code))))
             (unless (file-exists-p (file-name-directory target-filename))
               (make-directory (file-name-directory target-filename) t))
-            (write-region compiled-code nil target-filename)
+            (write-region compiled-code nil target-filename nil nil nil nil)
             (if js-eval-use-window
                 (progn
                   (js-eval-server-eval-request-async
@@ -4988,10 +5022,9 @@ the function prompts the user to input the code."
                       ("reset" . ,(js-eval-f-parent buffer-file-name))
                       ("nodeModulesPaths"
                        .
-                       ,(when
-                            js-eval-current-project-root
-                          (expand-file-name
-                           "node_modules/" js-eval-current-project-root)))
+                       ,(when js-eval-current-project-root
+                         (expand-file-name
+                          "node_modules/" js-eval-current-project-root)))
                       ("rootDir" . ,js-eval-current-project-root)))
                    'js-eval-show-result))
               (js-eval-eval-compiled target-filename))))))))
@@ -5051,7 +5084,20 @@ buffer's FILE name."
   (when-let ((compiled-file
               (or file
                   (and buffer-file-name
-                       (js-eval-get-temp-file-name buffer-file-name)))))
+                       (js-eval-get-temp-file-name buffer-file-name))
+                  (let* ((buffs (mapcar
+                                 #'window-buffer
+                                 (window-list)))
+                         (files (mapcar
+                                 #'js-eval-get-temp-file-name
+                                 (delq nil
+                                       (mapcar (apply-partially
+                                                #'buffer-local-value
+                                                'buffer-file-name)
+                                               buffs)))))
+                    (if (length> files 1)
+                        (completing-read "File to visit: " files)
+                      (car files))))))
     (when (file-exists-p compiled-file)
       (let* ((actions '((?o "other" find-file-other-window)
                         (?c "current" find-file)))
@@ -5069,8 +5115,9 @@ Optional argument ARG is a string of JavaScript code to be evaluated."
   (let ((result (js-eval-eval-0 arg)))
     (when (stringp result)
       (js-eval-show-result result
-                           (js-eval-get-temp-file-name
-                            buffer-file-name)))))
+                           (when buffer-file-name
+                             (js-eval-get-temp-file-name
+                              buffer-file-name))))))
 
 ;;;###autoload
 (defun js-eval-compile-region-or-buffer ()
@@ -5081,8 +5128,7 @@ Optional argument ARG is a string of JavaScript code to be evaluated."
     (js-eval-babel-compile (or (js-eval-get-region)
                                (buffer-substring-no-properties
                                 (point-min)
-                                (point-max)))))
-   'js-mode))
+                                (point-max)))))))
 
 ;;;###autoload
 (defun js-eval-cleanup ()
@@ -5102,20 +5148,239 @@ Optional argument ARG is a string of JavaScript code to be evaluated."
       (js-eval-server-run)))
   (setq js-eval-use-window (not js-eval-use-window)))
 
+(defun js-eval--change-file-ext (file new-ext)
+  "Replace extension of FILE with NEW-EXT."
+  (concat (file-name-sans-extension file) "." new-ext))
+
+
+
+
+(defun js-eval--compile-typescript-string (code &rest tsc-args)
+  "Compile typescript CODE string with TSC-ARGS."
+  (setq tsc-args (flatten-list tsc-args))
+  (let* ((temp-file (concat (temporary-file-directory)
+                            (make-temp-name "script") ".ts"))
+         (outfile (js-eval--change-file-ext temp-file "js"))
+         (command (string-join
+                   (delq nil (append (list "tsc"
+                                           (shell-quote-argument
+                                            temp-file))
+                                     tsc-args))
+                   "\s")))
+    (when-let ((buff (get-file-buffer outfile)))
+      (with-current-buffer buff
+        (set-buffer-modified-p nil))
+      (kill-buffer buff))
+    (let ((inhibit-message nil))
+      (write-region code nil temp-file)
+      (with-temp-buffer
+        (shell-command command (current-buffer)
+                       (current-buffer))
+        (if (file-exists-p outfile)
+            (with-temp-buffer
+              (insert-file-contents outfile)
+              (buffer-string))
+          (minibuffer-message "An error: %s" (buffer-string))
+          nil)))))
+
+(defun js-eval--get-other-wind ()
+  "Return another window or split sensibly if needed."
+  (let ((wind-target
+         (if (minibuffer-selected-window)
+             (with-minibuffer-selected-window
+               (let ((wind (selected-window)))
+                 (or
+                  (window-right wind)
+                  (window-left wind)
+                  (split-window-sensibly)
+                  wind)))
+           (let ((wind (selected-window)))
+             (or
+              (window-right wind)
+              (window-left wind)
+              (split-window-sensibly)
+              wind)))))
+    wind-target))
+
+
+
 ;;;###autoload
-(defun js-eval-current-file-with-node ()
-  "Evaluate JavaScript file in Node.js and display result."
-  (interactive)
-  (let ((infile buffer-file-name))
-    (let ((result (with-temp-buffer
-                    (let ((status (call-process "node" infile t nil)))
-                      (let ((r (string-trim (buffer-string))))
-                        (list (eq 0 status) r))))))
-      (let ((msg (if (car result)
-                     (cadr result)
-                   (propertize (cadr result) 'face 'error))))
-        (js-eval-popup-inspect msg
-                               (when (car result) 'js-mode))))))
+(defun js-eval-esbuild-str (input-string)
+  "Pass INPUT-STRING to esbuild for bundling using an asynchronous process."
+  (interactive (list (buffer-string)))
+  (require 'ansi-color)
+  (let* ((process-name "esbuild-process")
+         (buffer-name "*esbuild-output*")
+         (process-buffer (get-buffer-create buffer-name))
+         (esbuild-cmd "esbuild")
+         (process (start-process
+                   process-name
+                   process-buffer
+                   esbuild-cmd
+                   "--loader=ts"
+                   "--bundle")))
+    (set-process-query-on-exit-flag process nil)
+    (set-process-sentinel process
+                          (lambda (p _e)
+                            (when (eq (process-status p)
+                                      'exit)
+                              (message
+                               "esbuild process finished"))))
+    (process-send-string process (concat input-string "\n"))
+    (process-send-eof process)
+    (with-current-buffer process-buffer
+      (setq buffer-read-only t)
+      (goto-char (point-max)))
+    (display-buffer process-buffer)))
+
+;;;###autoload
+(defun js-eval-esbuild (file &rest args)
+  "Eval a JavaScript FILE with ARGS and display output in a buffer.
+
+Argument PROGRAM is the name of the executable to run.
+
+Argument ARGS is a list of strings to be passed as arguments to the PROGRAM.
+
+Optional argument ENV is a list of environment variables to set in the form of
+\"VAR=VALUE\"."
+  (interactive (list (or buffer-file-name
+                         (read-file-name "Eval: "))))
+  (require 'ansi-color)
+  (let* ((buff-name (format "*js-eval-esbuild-%s*" file))
+         (buff (get-buffer-create buff-name))
+         (input-string (with-temp-buffer (insert-file-contents file)
+                                         (buffer-string)))
+         (process-environment (cons "NODE_NO_WARNINGS=1"
+                                    process-environment))
+         (proc (apply #'start-file-process buff-name buff
+                      "esbuild" "--bundle"
+                      "--platform=node"
+                      "--tree-shaking=false"
+                      (concat "--sourcefile=" file)
+                      "--loader=tsx"
+                      args)))
+    (with-current-buffer buff
+      (let ((inhibit-read-only t))
+        (erase-buffer)))
+    (set-process-sentinel
+     proc
+     (lambda (process _)
+       (let ((proc-status (process-status process))
+             (proc-exit-status (process-exit-status process)))
+         (when (memq proc-status '(exit signal))
+           (message "js-eval: process status %s" proc-status)
+           (cond ((zerop proc-exit-status)
+                  (require 'js-comint)
+                  (require 'nodejs-repl)
+                  (with-current-buffer (process-buffer process)
+                    (ansi-color-apply-on-region
+                     (point-min)
+                     (point-max))
+                    (let* ((str (buffer-substring-no-properties (point-min)
+                                                                (point-max)))
+                           (dir (file-name-directory file))
+                           (file (make-temp-file "js-eval"  nil ".js" str))
+                           (new-filename (concat (expand-file-name (file-name-base
+                                                                    file)
+                                                                   dir)
+                                                 ".js"))
+                           (repl-str (concat js-eval-util-string (format
+                                                                  "('%s', '', '%s')"
+                                                                  new-filename
+                                                                  ""))))
+                      (rename-file file new-filename t)
+                      (let ((default-directory dir))
+                        (js-eval--exec "node" "-p" repl-str)))))
+                 ((and
+                   (not (member "--platform=node" args))
+                   (with-current-buffer (process-buffer
+                                         process)
+                     (ansi-color-filter-region
+                      (point-min)
+                      (point-max))
+                     (goto-char (point-max))
+                     (re-search-backward
+                      "You can use \"--platform=node\"" nil t 1)))
+                  (message "js-eval: Retrying")
+                  (js-eval-esbuild file (append args "--platform=node")))
+                 (t
+                  (message "js-eval: other")
+                  (with-selected-window (js-eval--get-other-wind)
+                    (pop-to-buffer-same-window (with-current-buffer (process-buffer
+                                                                     process)
+                                                 (ansi-color-apply-on-region
+                                                  (point-min)
+                                                  (point-max))
+                                                 (current-buffer))))))))))
+    (set-process-filter
+     proc
+     (lambda (proc string)
+       (when-let ((buf (process-buffer proc)))
+         (with-current-buffer buf
+           (let ((inhibit-read-only t))
+             (save-excursion
+               (goto-char (point-max))
+               (insert string)))))))
+    (process-send-string proc (concat input-string "\n"))
+    (process-send-eof proc)
+    proc))
+
+(defun js-eval--exec (program &rest args)
+  "Execute a JavaScript PROGRAM with ARGS and display output in a buffer.
+
+Argument PROGRAM is the name of the executable to run.
+
+Argument ARGS is a list of strings to be passed as arguments to the PROGRAM.
+
+Optional argument ENV is a list of environment variables to set in the form of
+\"VAR=VALUE\"."
+  (require 'ansi-color)
+  (let* ((buff-name (format "*js-eval-%s*" program))
+         (buff (get-buffer-create buff-name))
+         (process-environment (cons "FORCE_COLOR=1"
+                                    (cons "NODE_NO_WARNINGS=1"
+                                          process-environment)))
+         (proc (apply #'start-file-process buff-name buff
+                      program args)))
+    (with-selected-window (js-eval--get-other-wind)
+      (pop-to-buffer-same-window buff))
+    (with-current-buffer buff
+      (let ((inhibit-read-only t))
+        (erase-buffer)))
+    (set-process-sentinel
+     proc
+     (lambda (process _)
+       (let ((proc-status (process-status process)))
+         (when (memq proc-status '(exit signal))
+           (with-current-buffer (process-buffer process)
+             (ansi-color-apply-on-region (point-min)
+                                         (point-max)))))))
+    (set-process-filter
+     proc
+     (lambda (proc string)
+       (when-let ((buf (process-buffer proc)))
+         (with-current-buffer buf
+           (let ((inhibit-read-only t))
+             (save-excursion
+               (goto-char (point-max))
+               (insert string)))))))
+    proc))
+
+;;;###autoload
+(defun js-eval-current-file-with-ts-node (file)
+  "Evaluate JavaScript FILE in Node.js and display result in color."
+  (interactive (list (or buffer-file-name
+                         (read-file-name "Eval file: "))))
+  (let ((process-environment (cons "FORCE_COLOR=1" process-environment)))
+    (js-eval--exec "ts-node" file)))
+
+;;;###autoload
+(defun js-eval-current-file-with-node (file)
+  "Evaluate JavaScript FILE in Node.js and display result."
+  (interactive (list (or buffer-file-name
+                         (read-file-name "Eval file: "))))
+  (let ((process-environment (cons "FORCE_COLOR=1" process-environment)))
+    (js-eval--exec "node" file)))
 
 ;;;###autoload
 (defun js-eval-buffer ()
@@ -5147,7 +5412,17 @@ Optional argument ARG is a string of JavaScript code to be evaluated."
                       buffer-file-name))))
     (file-exists-p file)))
 
-;;;###autoload (autoload 'js-eval-transient "js-eval.el" nil t)
+;;;###autoload
+(define-minor-mode js-eval-eval-on-save-mode
+  "Runs js-eval-inspect on file save when this mode is turned on."
+  :lighter " js-eval-inspect"
+  :global nil
+  (if js-eval-eval-on-save-mode
+      (add-hook 'before-save-hook #'js-eval-buffer nil 'local)
+    (remove-hook 'before-save-hook #'js-eval-buffer 'local)))
+
+
+;;;###autoload (autoload 'js-eval-transient "js-eval" nil t)
 (transient-define-prefix js-eval-transient ()
   "Toggle JavaScript evaluation modes and run actions."
   [["Eval"
@@ -5155,7 +5430,7 @@ Optional argument ARG is a string of JavaScript code to be evaluated."
      :transient t
      :description
      (lambda ()
-       (concat "Window mode "
+       (concat "Window (DOM) mode "
                (if
                    (bound-and-true-p js-eval-use-window)
                    (propertize "(On)" 'face 'success)
@@ -5163,7 +5438,7 @@ Optional argument ARG is a string of JavaScript code to be evaluated."
     ("e" "Region or sexp" js-eval-eval)
     ("b" "Buffer" js-eval-buffer)
     ("l" "Cleanup" js-eval-cleanup)
-    ("c" "File with node" js-eval-current-file-with-node)]
+    ("c" "File without compiling" js-eval-current-file-with-node)]
    ["Compile"
     ("o" "File" js-eval-compile-file)
     ("C" "Region or buffer" js-eval-compile-region-or-buffer)
