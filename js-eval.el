@@ -5290,7 +5290,10 @@ Optional argument ENV is a list of environment variables to set in the form of
                                                                   ""))))
                       (rename-file file new-filename t)
                       (let ((default-directory dir))
-                        (js-eval--exec "node" "-p" repl-str)))))
+                        (js-eval--exec "node" "-p" repl-str
+                                       (lambda ()
+                                         (when (file-exists-p new-filename)
+                                           (delete-file new-filename))))))))
                  ((and
                    (not (member "--platform=node" args))
                    (with-current-buffer (process-buffer
@@ -5337,11 +5340,12 @@ Optional argument ENV is a list of environment variables to set in the form of
   (require 'ansi-color)
   (let* ((buff-name (format "*js-eval-%s*" program))
          (buff (get-buffer-create buff-name))
+         (on-done (seq-find #'functionp args))
          (process-environment (cons "FORCE_COLOR=1"
                                     (cons "NODE_NO_WARNINGS=1"
                                           process-environment)))
          (proc (apply #'start-file-process buff-name buff
-                      program args)))
+                      program (seq-remove #'functionp args))))
     (with-selected-window (js-eval--get-other-wind)
       (pop-to-buffer-same-window buff))
     (with-current-buffer buff
@@ -5354,7 +5358,9 @@ Optional argument ENV is a list of environment variables to set in the form of
          (when (memq proc-status '(exit signal))
            (with-current-buffer (process-buffer process)
              (ansi-color-apply-on-region (point-min)
-                                         (point-max)))))))
+                                         (point-max))
+             (when on-done
+               (funcall on-done)))))))
     (set-process-filter
      proc
      (lambda (proc string)
