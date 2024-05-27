@@ -1,4 +1,4 @@
-;;; js-eval.el --- Configure eval -*- lexical-binding: t -*-
+;;; js-eval.el --- JavaScript/TypeScript evaluation -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2022 Karim Aziiev <karim.aziiev@gmail.com>
 
@@ -26,7 +26,16 @@
 
 ;;; Commentary:
 
-;; This file configures operations with eval
+;; This package provides a set of tools for evaluating JavaScript and TypeScript
+;; code within Emacs.
+
+;; It includes functions for compiling, running, and
+;; inspecting JavaScript code, as well as managing project dependencies and
+;; configurations.
+
+;; js-eval supports various JavaScript environments,including Node.js and
+;; Babel, and offers integration with Emacs' transient interface for easy access
+;; to its features.
 
 ;;; Code:
 
