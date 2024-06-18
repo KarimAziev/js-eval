@@ -54,6 +54,141 @@
 (declare-function ansi-color-filter-region "ansi-color")
 (declare-function ansi-color-apply-on-region "ansi-color")
 
+(defcustom js-eval-tsconfig-filename "tsconfig.json"
+  "Filename for TypeScript configuration used by `js-eval' command.
+
+Specifies the filename of the TypeScript configuration file used when evaluating
+TypeScript projects. The default value is \"tsconfig.json\".
+
+The value should be a string representing the filename of the TypeScript
+configuration file. This filename is used to locate the TypeScript project
+settings when performing operations that require project context, such as type
+checking or compiling TypeScript code."
+  :group 'js-eval
+  :type 'string)
+
+(defcustom js-eval-node-modules-priority-section-to-read
+  '("jsnext:main" "module" "types" "typings")
+  "Priority list of package.json fields for module resolution.
+
+A list of keys to prioritize when reading `package.json' for module resolution
+in JavaScript evaluations. The default keys are \"jsnext:main\", \"module\",
+\"types\", and \"typings\".
+
+Each element in the list is a string that corresponds to a key in the
+`package.json' file. These keys typically point to alternative module entry
+points or type definitions that should be considered when resolving modules. The
+order of the keys in the list reflects their priority, with earlier entries
+having higher precedence."
+  :group 'js-eval
+  :type '(repeat string))
+
+(defcustom js-eval-package-json-sections
+  '("dependencies" "devDependencies" "peerDependencies")
+  "List of JSON sections to evaluate in JavaScript projects.
+
+A list of sections to extract from `package.json' when evaluating
+JavaScript projects. The default sections are \"dependencies\",
+\"devDependencies\", and \"peerDependencies\".
+
+Each element in the list should be a string representing a key in the
+`package.json' file that corresponds to a section containing module
+dependencies. The list can be customized to include any section that
+might be relevant for a specific workflow or project setup.
+
+To modify this list, use the customization interface or set the value
+directly in an Emacs Lisp file. When setting the value directly, ensure
+that each section name is a string and the list is properly quoted."
+  :group 'js-eval
+  :type '(repeat string))
+
+(defcustom js-eval-preffered-extensions
+  '("ts" "tsx" "jsx" "es6" "es" "mjs" "js" "cjs" "ls" "sjs" "iced" "liticed"
+    "json")
+  "List of preferred file extensions for JavaScript evaluation.
+
+A list of file extensions that should be considered when evaluating JavaScript
+code. The default extensions are \"ts\", \"tsx\", \"jsx\", \"es6\", \"es\",
+\"mjs\", \"js\", \"cjs\", \"ls\", \"sjs\", \"iced\", \"liticed\", and \"json\".
+
+Each element in the list must be a string representing a file extension
+without the leading dot. These extensions are used to determine which
+files to include during the evaluation process."
+  :group 'js-eval
+  :type '(repeat string))
+
+(defcustom js-eval-project-aliases nil
+  "Alist mapping JS aliases to project directory paths.
+
+A list of project-specific aliases for module resolution when evaluating
+JavaScript code. Each entry in the list is a cons cell where the car is a string
+representing the alias and the cdr is a list of directory paths that the alias
+should resolve to.
+
+When setting this variable, use an alist where each key is an alias string and
+the associated value is a list of directory paths. The paths can be absolute or
+relative to the project's root directory.
+
+The `:set' function ensures that the aliases are normalized and converted to
+absolute paths using the `js-eval-normalize-aliases' function. The normalization
+process includes expanding any wildcard characters and resolving relative paths.
+
+The `:type' specifier indicates that the value should be an alist with string
+keys and list values, where each list contains directory paths."
+  :group 'js-eval
+  :set (lambda (var value &rest _ignored)
+         (let ((aliases (js-eval-normalize-aliases value)))
+           (set var aliases)))
+  :type '(alist
+          :key-type (string :tag "Alias")
+          :value-type (repeat :tag "Path" directory)))
+
+(defcustom js-eval-babel-node-modules-path "~/js-eval/node_modules/"
+  "Path to node_modules for Babel transpilation.
+
+Specifies the path to the `node_modules' directory used by Babel for
+transpiling JavaScript code. The default path is \"~/js-eval/node_modules/\".
+
+The value should be a string representing the absolute or relative
+directory path where Babel can find the necessary node modules. Ensure
+that the specified path is accessible and contains the required Babel
+packages for code evaluation and transpilation."
+  :type 'directory
+  :group 'js-eval-javascript)
+
+(defcustom js-eval-node-modules-dir "node_modules"
+  "Directory path for Node.js modules.
+
+Specifies the directory name where Node.js modules are located for JavaScript
+evaluation. The default value is \"node_modules\".
+
+The value should be a string representing the directory name relative to the
+JavaScript project's root. This directory is where `npm' or `yarn' installs the
+project's dependencies. Adjust this value if using a non-standard directory
+structure."
+  :group 'js-eval
+  :type 'string)
+
+(defcustom js-eval-babel-options nil
+  "Options for Babel transpilation in `js-eval' function.
+
+Specifies options to pass to Babel when evaluating JavaScript code.
+
+When non-nil, should be a list of strings, each representing a command-line
+option to be passed to the Babel transpiler.
+
+For example, to specify a particular preset, include a string like
+\"--presets=@babel/preset-env\" in the list.
+
+The default value is nil, which means no additional options are passed to Babel.
+To modify this list, use the customization interface or set the value in your
+Emacs configuration file with `setq'.
+
+Each option should be provided in the same format as it would be on the command
+line."
+  :type '(repeat string)
+  :group 'js-eval-javascript)
+
 (defconst js-eval-file-ext-regexp
   (concat "\\.\\("
           (string-join
@@ -160,6 +295,7 @@ Argument PATH is the file path to check against the index file pattern."
 
 (defvar js-eval-server-process-name "emacs-jsdom-run"
   "Name of the process running the JavaScript evaluation server.")
+
 (defvar js-eval-server-buffer-name
   (concat "*" js-eval-server-process-name "*")
   "Buffer name for JavaScript evaluation server output.")
@@ -169,56 +305,9 @@ Argument PATH is the file path to check against the index file pattern."
 (defvar js-eval-callback nil
   "Function called with the result of JavaScript evaluation.")
 
-(defcustom js-eval-tsconfig-filename "tsconfig.json"
-  "Filename for TypeScript configuration used by `js-eval' command.
-
-Specifies the filename of the TypeScript configuration file used when evaluating
-TypeScript projects. The default value is \"tsconfig.json\".
-
-The value should be a string representing the filename of the TypeScript
-configuration file. This filename is used to locate the TypeScript project
-settings when performing operations that require project context, such as type
-checking or compiling TypeScript code."
-  :group 'js-eval
-  :type 'string)
-
-(defcustom js-eval-node-modules-priority-section-to-read
-  '("jsnext:main" "module" "types" "typings")
-  "Priority list of package.json fields for module resolution.
-
-A list of keys to prioritize when reading `package.json' for module resolution
-in JavaScript evaluations. The default keys are \"jsnext:main\", \"module\",
-\"types\", and \"typings\".
-
-Each element in the list is a string that corresponds to a key in the
-`package.json' file. These keys typically point to alternative module entry
-points or type definitions that should be considered when resolving modules. The
-order of the keys in the list reflects their priority, with earlier entries
-having higher precedence."
-  :group 'js-eval
-  :type '(repeat string))
-
 (defvar js-eval-files-cache (make-hash-table :test 'equal)
   "Hash table caching JavaScript file evaluations.")
 
-(defcustom js-eval-package-json-sections
-  '("dependencies" "devDependencies" "peerDependencies")
-  "List of JSON sections to evaluate in JavaScript projects.
-
-A list of sections to extract from `package.json' when evaluating
-JavaScript projects. The default sections are \"dependencies\",
-\"devDependencies\", and \"peerDependencies\".
-
-Each element in the list should be a string representing a key in the
-`package.json' file that corresponds to a section containing module
-dependencies. The list can be customized to include any section that
-might be relevant for a specific workflow or project setup.
-
-To modify this list, use the customization interface or set the value
-directly in an Emacs Lisp file. When setting the value directly, ensure
-that each section name is a string and the list is properly quoted."
-  :group 'js-eval
-  :type '(repeat string))
 
 (defconst js-eval-node-modules-regexp
   "\\(/\\|^\\)node_modules\\(/\\|$\\)"
@@ -226,21 +315,6 @@ that each section name is a string and the list is properly quoted."
 
 (defvar js-eval-current-project-root nil
   "Path to the root directory of the current JavaScript project.")
-
-(defcustom js-eval-preffered-extensions
-  '("ts" "tsx" "jsx" "es6" "es" "mjs" "js" "cjs" "ls" "sjs" "iced" "liticed"
-    "json")
-  "List of preferred file extensions for JavaScript evaluation.
-
-A list of file extensions that should be considered when evaluating JavaScript
-code. The default extensions are \"ts\", \"tsx\", \"jsx\", \"es6\", \"es\",
-\"mjs\", \"js\", \"cjs\", \"ls\", \"sjs\", \"iced\", \"liticed\", and \"json\".
-
-Each element in the list must be a string representing a file extension
-without the leading dot. These extensions are used to determine which
-files to include during the evaluation process."
-  :group 'js-eval
-  :type '(repeat string))
 
 
 (defvar js-eval-json-hash (make-hash-table :test 'equal)
@@ -283,6 +357,9 @@ Supposed to use as argument of `skip-chars-forward'.")
 (defvar js-eval-assignment-operators
   '("=" "+=" "-=" "*=" "/=" "%=")
   "List of JavaScript assignment operators for evaluation.")
+
+(defvar js-eval-use-window nil
+  "Determines if JavaScript evaluation should use a window.")
 
 (defmacro js-eval-with-temp-buffer (&rest body)
   "Evaluate BODY in a temporary JavaScript buffer with custom settings.
@@ -2500,64 +2577,6 @@ extracted and processed."
 }"
   "Default Babel configuration string for JavaScript evaluation.")
 
-(defcustom js-eval-project-aliases nil
-  "Alist mapping JS aliases to project directory paths.
-
-A list of project-specific aliases for module resolution when evaluating
-JavaScript code. Each entry in the list is a cons cell where the car is a string
-representing the alias and the cdr is a list of directory paths that the alias
-should resolve to.
-
-When setting this variable, use an alist where each key is an alias string and
-the associated value is a list of directory paths. The paths can be absolute or
-relative to the project's root directory.
-
-The `:set' function ensures that the aliases are normalized and converted to
-absolute paths using the `js-eval-normalize-aliases' function. The normalization
-process includes expanding any wildcard characters and resolving relative paths.
-
-The `:type' specifier indicates that the value should be an alist with string
-keys and list values, where each list contains directory paths."
-  :group 'js-eval
-  :set (lambda (var value &rest _ignored)
-         (let ((aliases (js-eval-normalize-aliases value)))
-           (set var aliases)))
-  :type '(alist
-          :key-type (string :tag "Alias")
-          :value-type (repeat :tag "Path" directory)))
-
-(defcustom js-eval-babel-node-modules-path "~/js-eval/node_modules/"
-  "Path to node_modules for Babel transpilation.
-
-Specifies the path to the `node_modules' directory used by Babel for
-transpiling JavaScript code. The default path is \"~/js-eval/node_modules/\".
-
-The value should be a string representing the absolute or relative
-directory path where Babel can find the necessary node modules. Ensure
-that the specified path is accessible and contains the required Babel
-packages for code evaluation and transpilation."
-  :type 'directory
-  :group 'js-eval-javascript)
-
-(defcustom js-eval-babel-options nil
-  "Options for Babel transpilation in `js-eval' function.
-
-Specifies options to pass to Babel when evaluating JavaScript code.
-
-When non-nil, should be a list of strings, each representing a command-line
-option to be passed to the Babel transpiler.
-
-For example, to specify a particular preset, include a string like
-\"--presets=@babel/preset-env\" in the list.
-
-The default value is nil, which means no additional options are passed to Babel.
-To modify this list, use the customization interface or set the value in your
-Emacs configuration file with `setq'.
-
-Each option should be provided in the same format as it would be on the command
-line."
-  :type '(repeat string)
-  :group 'js-eval-javascript)
 
 (defconst js-eval-from-keyword--re
   (js-eval-make-opt-symbol-regexp "from"))
@@ -2566,19 +2585,6 @@ line."
   (eval-and-compile
     (concat "\\_<" (regexp-opt `(,"import") t) "\\_>"))
   "Regexp matching keyword import.")
-
-(defcustom js-eval-node-modules-dir "node_modules"
-  "Directory path for Node.js modules.
-
-Specifies the directory name where Node.js modules are located for JavaScript
-evaluation. The default value is \"node_modules\".
-
-The value should be a string representing the directory name relative to the
-JavaScript project's root. This directory is where `npm' or `yarn' installs the
-project's dependencies. Adjust this value if using a non-standard directory
-structure."
-  :group 'js-eval
-  :type 'string)
 
 (defvar js-eval-overlay-at nil
   "Overlay position for JavaScript evaluation results.")
@@ -4989,8 +4995,6 @@ Argument FILES is a list of file names to be processed by
 `js-eval-files-to-compile-alist'."
   (mapcar (lambda (it) (cons it (js-eval-get-temp-file-name it))) files))
 
-(defvar js-eval-use-window nil
-  "Determines if JavaScript evaluation should use a window.")
 
 (defun js-eval-eval-0 (arg)
   "Evaluate JavaScript code from Emacs buffer or string.
