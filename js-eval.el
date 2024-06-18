@@ -5477,7 +5477,6 @@ Optional argument ENV is a list of environment variables to set in the form of
        js-eval-overlay-at))
     ("i" "Open inspector" js-eval-popup-open-inspector)]
    ["Navigation"
-    ("x" "Export node at point" js-eval-export-it)
     ("B" "Backward node" js-eval-backward-node)
     ("f" "Forward node" js-eval-forward-node)]
    ["Server"
