@@ -382,7 +382,7 @@ a temporary buffer set up for JavaScript evaluation."
 
 (defun js-eval-path-at-point ()
   "Extract a substring from a JavaScript path at point."
-  (when-let ((str (js-eval-parse-string)))
+  (when-let* ((str (js-eval-parse-string)))
     (substring str 1 (1- (length str)))))
 
 (defun js-eval-parse-es-export-braces ()
@@ -430,7 +430,7 @@ a temporary buffer set up for JavaScript evaluation."
 
 (defun js-eval-get-assigmnent-operator ()
   "Return assignment operator at point if it's in the predefined list."
-  (when-let ((operator (js-eval-get-operator-at-point)))
+  (when-let* ((operator (js-eval-get-operator-at-point)))
     (when (member operator js-eval-assignment-operators)
       operator)))
 
@@ -471,7 +471,7 @@ applied."
 
 (defun js-eval-parse-es-import-braces ()
   "Parse JavaScript ES6 import braces and return a list of items."
-  (when-let ((obj (js-eval-parse-object t)))
+  (when-let* ((obj (js-eval-parse-object t)))
     (mapcar (lambda (cell) (let ((real-name
                              (car cell))
                             (as-name
@@ -545,7 +545,7 @@ Argument STR is a string to check against the list of reserved JavaScript words.
 
 (defun js-eval-parse-iife ()
   "Parse JavaScript Immediately Invoked Function Expression (IIFE) syntax."
-  (when-let ((children
+  (when-let* ((children
               (pcase (js-eval-get-next-char)
                 ((or "!" ";")
                  (forward-char 1)
@@ -618,7 +618,7 @@ Argument STR is a string to check against the list of reserved JavaScript words.
                ("{"
                 (js-eval-parse-es-export-braces))
                ("type"
-                (if-let ((var (js-eval-parse-variable)))
+                (if-let* ((var (js-eval-parse-variable)))
                     var
                   (js-eval-get-obj-key)
                   (js-eval-forward-whitespace)
@@ -628,7 +628,7 @@ Argument STR is a string to check against the list of reserved JavaScript words.
                ("="
                 (forward-char 1)
                 (js-eval-forward-whitespace)
-                (when-let ((value (js-eval-parse-value)))
+                (when-let* ((value (js-eval-parse-value)))
                   (js-eval-forward-whitespace)
                   (when (js-eval-forward-lists)
                     (js-eval-get-obj-key))
@@ -652,7 +652,7 @@ Argument STR is a string to check against the list of reserved JavaScript words.
                  :type 1
                  :end (point)))
                ((or "async" "function" "function*")
-                (when-let ((func (js-eval-parse-function-declaration)))
+                (when-let* ((func (js-eval-parse-function-declaration)))
                   (js-eval-make-item
                    func
                    :export t
@@ -687,7 +687,7 @@ Argument STR is a string to check against the list of reserved JavaScript words.
                (js-eval-forward-whitespace)
                (and
                 (js-eval-get-assigmnent-operator)
-                (if-let ((named (progn
+                (if-let* ((named (progn
                                   (js-eval-forward-whitespace)
                                   (js-eval-parse-object t)))
                          (obj-end (point)))
@@ -707,7 +707,7 @@ Argument STR is a string to check against the list of reserved JavaScript words.
                                  :var-type "module.exports"
                                  :parent-end obj-end)))
                             named)
-                  (if-let ((path
+                  (if-let* ((path
                             (progn (when (looking-at "\\_<\\(require\\)\\_>")
                                      (skip-chars-forward
                                       js-eval-regexp-name)
@@ -804,7 +804,7 @@ Argument STR is a string to check against the list of reserved JavaScript words.
                    (js-eval-parse-value)
                    nil))
             (_
-             (when-let ((default (js-eval-get-word-if-valid))
+             (when-let* ((default (js-eval-get-word-if-valid))
                         (beg (point)))
                (skip-chars-forward js-eval-regexp-name)
                (setq default-import
@@ -864,14 +864,14 @@ Optional argument NODE is the AST node representing the current parse context."
         ("declare"
          (js-eval-forward-whitespace)
          (if (not (looking-at "\\_<\\(module\\)\\_>"))
-             (when-let ((item (or (js-eval-parse-function-declaration)
+             (when-let* ((item (or (js-eval-parse-function-declaration)
                                   (js-eval-parse-variable))))
                (if (listp item)
                    (mapcar (lambda (it)
                              (js-eval-make-item it
                                                    :parent-start start
                                                    :var-type
-                                                   (if-let
+                                                   (if-let*
                                                        ((var-type
                                                          (js-eval-get-prop
                                                           it :var-type)))
@@ -882,7 +882,7 @@ Optional argument NODE is the AST node representing the current parse context."
                  (js-eval-make-item item
                                        :parent-start start
                                        :var-type
-                                       (if-let ((var-type
+                                       (if-let* ((var-type
                                                  (js-eval-get-prop
                                                   item :var-type)))
                                            (concat "declare " var-type)
@@ -899,7 +899,7 @@ Optional argument NODE is the AST node representing the current parse context."
          (js-eval-parse-scope-inner))
         ("type"
          (js-eval-forward-whitespace)
-         (when-let ((id (js-eval-get-obj-key)))
+         (when-let* ((id (js-eval-get-obj-key)))
            (let ((args (js-eval-forward-angles)))
              (js-eval-forward-whitespace)
              (js-eval-make-item
@@ -914,7 +914,7 @@ Optional argument NODE is the AST node representing the current parse context."
         ((or "const" "let" "var")
          (js-eval-forward-whitespace)
          (while (or (null count)
-                    (when-let ((pos (save-excursion
+                    (when-let* ((pos (save-excursion
                                       (js-eval-forward-whitespace)
                                       (when
                                           (or
@@ -936,7 +936,7 @@ Optional argument NODE is the AST node representing the current parse context."
                  (import-path))
              (js-eval-forward-whitespace)
              (if (equal (js-eval-strip-text-props token) "enum")
-                 (when-let ((id (js-eval-get-obj-key)))
+                 (when-let* ((id (js-eval-get-obj-key)))
                    (js-eval-forward-whitespace)
                    (push (js-eval-make-item
                           id
@@ -1013,7 +1013,7 @@ Optional argument NODE is the AST node representing the current parse context."
 
 (defun js-eval-parse-statement ()
   "Parse JavaScript statements for evaluation."
-  (when-let ((item (and (js-eval-reserved-word-p (js-eval-which-word))
+  (when-let* ((item (and (js-eval-reserved-word-p (js-eval-which-word))
                         (js-eval-get-obj-key))))
     (js-eval-forward-whitespace)
     (let ((parts))
@@ -1148,7 +1148,7 @@ If non-nil, the function will parse nested structures within the node."
 
 (defun js-eval-get-word-if-valid ()
   "Return word at point if it's a valid JavaScript identifier."
-  (when-let ((word (js-eval-which-word)))
+  (when-let* ((word (js-eval-which-word)))
     (when (js-eval-valid-identifier-p word)
       word)))
 
@@ -1191,14 +1191,14 @@ Optional argument CALLBACK is a function to be called with each parsed node."
 
 Optional argument REGEXP is a regular expression to match a word. If nil, a
 default word-matching regular expression is used."
-  (when-let ((bounds (js-eval-get-bounds regexp)))
+  (when-let* ((bounds (js-eval-get-bounds regexp)))
     (buffer-substring-no-properties (car bounds)
                                     (cdr bounds))))
 
 (defun js-eval-skip-string ()
   "Skip over a JavaScript string literal at point."
   (with-syntax-table js-eval-mode-syntax-table
-    (when-let ((beg (nth 8 (syntax-ppss (point)))))
+    (when-let* ((beg (nth 8 (syntax-ppss (point)))))
       (goto-char beg)
       (forward-sexp 1))))
 
@@ -1224,7 +1224,7 @@ default word-matching regular expression is used."
                  (save-excursion
                    (js-eval-forward-whitespace "\s\t")
                    (looking-at "[({]")))
-        (if-let ((calls (progn
+        (if-let* ((calls (progn
                           (js-eval-forward-whitespace "\s\t")
                           (js-eval-parse-funcall-params))))
             (push calls results)
@@ -1239,7 +1239,7 @@ default word-matching regular expression is used."
 
 (defun js-eval-parse-regexp ()
   "Parse and return a JavaScript regular expression with flags from buffer."
-  (when-let ((re (and (looking-at js-eval--regexp-js-regexp)
+  (when-let* ((re (and (looking-at js-eval--regexp-js-regexp)
                       (js-eval-re-search-forward
                        js-eval--regexp-js-regexp nil t 1)
                       (match-string-no-properties 0))))
@@ -1262,7 +1262,7 @@ move backwards. If omitted, it defaults to moving forward."
 
 (defun js-eval-forward-angles ()
   "Navigate forward past angle brackets in pairs."
-  (when-let ((count (when (looking-at "<")
+  (when-let* ((count (when (looking-at "<")
                       (forward-char 1)
                       1))
              (beg (1- (point))))
@@ -1280,7 +1280,7 @@ move backwards. If omitted, it defaults to moving forward."
 
 (defun js-eval-parse-string ()
   "Extract a string literal at point without properties."
-  (when-let ((start (and (looking-at "[`'\"]")
+  (when-let* ((start (and (looking-at "[`'\"]")
                          (point))))
     (forward-sexp 1)
     (buffer-substring-no-properties start (point))))
@@ -1294,7 +1294,7 @@ Optional argument PARSE-OBJECT-FN is a function used to parse an object; it
 defaults to `js-eval-parse-token-at-point'."
   (unless parse-object-fn (setq parse-object-fn
                                 'js-eval-parse-token-at-point))
-  (when-let ((end (save-excursion
+  (when-let* ((end (save-excursion
                     (when (looking-at "[(]")
                       (forward-sexp 1)
                       (point)))))
@@ -1309,7 +1309,7 @@ defaults to `js-eval-parse-token-at-point'."
           (skip-chars-forward ",")
           (setq count (1+ count))
           (js-eval-forward-whitespace))
-        (if-let ((children (js-eval-parse-function-declaration deep)))
+        (if-let* ((children (js-eval-parse-function-declaration deep)))
             (setq args (append args
                                (if (stringp children) (list children)
                                  children)))
@@ -1370,7 +1370,7 @@ defaults to `js-eval-parse-token-at-point'."
 
 (defun js-eval-skip-arrow ()
   "Skip => in JavaScript code and move point forward."
-  (when-let ((next (js-eval-get-next-char 2)))
+  (when-let* ((next (js-eval-get-next-char 2)))
     (when (string= next "=>")
       (forward-char 2)
       (prog1
@@ -1408,7 +1408,7 @@ defaults to `js-eval-parse-token-at-point'."
 
 (defun js-eval-find-package-json ()
   "Find and return the path to `package.json' in the project root."
-  (when-let ((root (js-eval-find-project-root)))
+  (when-let* ((root (js-eval-find-project-root)))
     (js-eval-join-file root "package.json")))
 
 (defun js-eval-get-next-char (&optional nth position)
@@ -1439,12 +1439,12 @@ provided, the current point is used."
                            0))
            (setq value
                  (or
-                  (when-let ((v (or (js-eval-parse-funcall)
+                  (when-let* ((v (or (js-eval-parse-funcall)
                                     (js-eval-parse-regexp))))
                     (if (equal (js-eval-get-next-char 1) ".")
                         (setq v (progn (forward-char 1) (concat v ".")))
                       v))
-                  (if-let ((operator
+                  (if-let* ((operator
                             (save-excursion
                               (js-eval-get-operator-at-point))))
                       (or
@@ -1502,7 +1502,7 @@ provided, the current point is used."
                              key)))))))))
       (push value nodes)
       (js-eval-forward-whitespace "\s\t")
-      (when-let ((func (and (looking-at "{")
+      (when-let* ((func (and (looking-at "{")
                             (equal (and value
                                         (js-eval-get-prop value :value-type))
                                    "call"))))
@@ -1575,7 +1575,7 @@ non-nil."
 
 (defun js-eval-get-next-char-or-word ()
   "Retrieve next character or entire word from buffer."
-  (when-let ((char (js-eval-get-next-char)))
+  (when-let* ((char (js-eval-get-next-char)))
     (if (string-match-p "[_$A-Za-z0-9]" char)
         (js-eval-which-word)
       char)))
@@ -1723,7 +1723,7 @@ non-nil, the function will parse the scope inner deeply."
          (js-eval-forward-whitespace)
          (when (js-eval-forward-angles)
            (js-eval-forward-whitespace))
-         (when-let ((args (js-eval-parse-arguments deep)))
+         (when-let* ((args (js-eval-parse-arguments deep)))
            (js-eval-forward-whitespace)
            (when (looking-at ":")
              (js-eval-forward-whitespace)
@@ -1776,7 +1776,7 @@ FILENAME."
       (save-excursion (insert (with-temp-buffer
                                 (let ((inhibit-read-only t))
                                   (erase-buffer)
-                                  (if-let ((buff (get-file-buffer ,filename)))
+                                  (if-let* ((buff (get-file-buffer ,filename)))
                                       (insert-buffer-substring-no-properties
                                        buff)
                                     (insert-file-contents ,filename))
@@ -1829,7 +1829,7 @@ to read, such as \"dependencies\". If not provided, it defaults to
   (unless section (setq section "dependencies"))
   (let ((path (or package-json-path (js-eval-find-package-json)))
         (json-object-type 'hash-table))
-    (when-let ((content
+    (when-let* ((content
                 (condition-case nil
                     (decode-coding-string
                      (with-temp-buffer
@@ -1913,7 +1913,7 @@ it can be `hash-table', `alist', or `plist'. It defaults to `plist'."
                 (js-eval-with-buffer-or-file-content
                     file
                     (js-eval-remove-comments)
-                  (when-let ((str (buffer-substring-no-properties
+                  (when-let* ((str (buffer-substring-no-properties
                                    (point-min)
                                    (point-max))))
                     (json-read-from-string str))))
@@ -2050,7 +2050,7 @@ Argument PATH is a string representing the file path to expand.
 
 Optional argument BASE-URL is a string representing the base URL to use for
 resolving relative paths."
-  (when-let ((filepath
+  (when-let* ((filepath
               (when path (replace-regexp-in-string "\\*[^$]+" "" path))))
     (cond
      ((and (file-name-absolute-p filepath)
@@ -2128,7 +2128,7 @@ provided, the function attempts to find the project root automatically."
        (package-json (js-eval-read-json package-json-path 'hash-table)))
     (seq-remove #'null
                 (mapcan (lambda (section)
-                          (when-let ((hash (gethash section
+                          (when-let* ((hash (gethash section
                                                     package-json)))
                             (hash-table-keys hash)))
                         js-eval-package-json-sections))))
@@ -2190,7 +2190,7 @@ Optional argument EXTENSIONS is a list of file extensions to sort FILES by; it
 defaults to the value of `js-eval-preffered-extensions'."
   (setq extensions (or extensions js-eval-preffered-extensions))
   (seq-sort-by (lambda (a)
-                 (if-let ((ext (and a (file-name-extension a))))
+                 (if-let* ((ext (and a (file-name-extension a))))
                      (or (seq-position extensions ext 'string=) -1)
                    -1))
                #'>
@@ -2393,7 +2393,7 @@ to 1."
 
 Optional argument REGEXP is a regular expression to match against the word at
 point. If nil, a default word detection mechanism is used."
-  (when-let ((bounds (js-eval-get-rebounds-at-point regexp)))
+  (when-let* ((bounds (js-eval-get-rebounds-at-point regexp)))
     (buffer-substring-no-properties (car bounds)
                                     (cdr bounds))))
 
@@ -2413,7 +2413,7 @@ Argument DIR is a directory path where the module resolution starts.
 Optional argument FILE is a file name to locate within the directory hierarchy
 starting at DIR. If FILE is not provided, DIR is used as the result if it
 exists."
-  (when-let ((result (if file
+  (when-let* ((result (if file
                          (let ((default-directory (expand-file-name dir))
                                (found))
                            (setq found (locate-dominating-file
@@ -2591,7 +2591,7 @@ extracted and processed."
 
 (defun js-eval-popup-minibuffer-select-window ()
   "Focus on the active minibuffer window."
-  (when-let ((wind (active-minibuffer-window)))
+  (when-let* ((wind (active-minibuffer-window)))
     (select-window wind)))
 
 (define-minor-mode js-eval-popup-mode
@@ -2664,7 +2664,7 @@ Argument ITEMS is a list of elements to flatten."
 
 (defun js-eval-get-config-dependencies ()
   "Retrieve Babel config dependencies for JavaScript evaluation."
-  (when-let ((config
+  (when-let* ((config
               (js-eval-read-babel-config)))
     (let ((dependencies))
       (let ((presets (js-eval-flatten (cdr (assoc 'presets config))))
@@ -2676,7 +2676,7 @@ Argument ITEMS is a list of elements to flatten."
 
 (defun js-eval-make-npm-install-command ()
   "Generate an npm install command for missing dependencies."
-  (when-let ((dependencies (js-eval-get-missing-dependencies)))
+  (when-let* ((dependencies (js-eval-get-missing-dependencies)))
     (string-join (append '("npm install --save-dev") dependencies) "\s")))
 
 (defun js-eval-get-missing-dependencies ()
@@ -2753,7 +2753,7 @@ Remaining arguments PLIST are property-value pairs to be applied to CANDIDATE."
         (key)
         (filtered-pl))
     (while (setq key (pop pl))
-      (when-let ((val (pop pl)))
+      (when-let* ((val (pop pl)))
         (push val filtered-pl)
         (push key filtered-pl)))
     (apply #'js-eval-propertize candidate filtered-pl)))
@@ -2775,7 +2775,7 @@ Argument X is the value to be converted to a string representation."
   "Normalize object property position in ITEM.
 
 Argument ITEM is a string representing the JavaScript object property path."
-  (if-let ((found (seq-find
+  (if-let* ((found (seq-find
                    (lambda (it) (and it (js-eval-get-prop it :start)))
                    (reverse (split-string item "\\.\\|]\\|\\[")))))
       (js-eval-make-item item
@@ -2824,7 +2824,7 @@ node_modules from. If not provided, the search starts from the project root
 directory."
   (if (file-name-absolute-p js-eval-node-modules-dir)
       js-eval-node-modules-dir
-    (when-let ((root (or project-dir (js-eval-find-project-root))))
+    (when-let* ((root (or project-dir (js-eval-find-project-root))))
       (setq root (car (split-string root js-eval-node-modules-regexp)))
       (js-eval-join-when-exists root js-eval-node-modules-dir))))
 
@@ -3024,7 +3024,7 @@ Argument DIR is a directory path where the function will attempt to resolve the
 
 (defun js-eval-node-modules-global ()
   "Evaluate global Node.js modules directory path."
-  (when-let ((dir (shell-command-to-string "npm config get prefix")))
+  (when-let* ((dir (shell-command-to-string "npm config get prefix")))
     (setq dir (expand-file-name "lib/node_modules/" dir))
     (when (file-exists-p dir)
       dir)))
@@ -3120,7 +3120,7 @@ the evaluation."
 (defun js-eval-server-run ()
   "Start or check status of the JavaScript evaluation server process."
   (interactive)
-  (if-let ((proc (js-eval-server-get-process)))
+  (if-let* ((proc (js-eval-server-get-process)))
       (setq js-eval-server-status (process-status proc))
     (let ((process-environment
            (append '("NODE_NO_WARNINGS=1") process-environment)))
@@ -3225,7 +3225,7 @@ mapNodeBuiltins();"
 (defun js-eval-overlay-copy ()
   "Copy overlay string to clipboard and display \"Copied\" message."
   (interactive)
-  (when-let ((str (overlay-get js-eval-overlay-at 'after-string)))
+  (when-let* ((str (overlay-get js-eval-overlay-at 'after-string)))
     (kill-new str)
     (message "Copied")
     str))
@@ -3389,7 +3389,7 @@ Argument PATH is a string representing the path to be evaluated."
                                                           nil t)
                                             "\s")))
                       res))))))
-    (mapcar (lambda (it) (if-let ((value (js-eval-get-prop it :value)))
+    (mapcar (lambda (it) (if-let* ((value (js-eval-get-prop it :value)))
                         (js-eval-make-item it :value (js-eval-stringify value))
                       it))
             (js-eval-get-object-items alist))))
@@ -3426,7 +3426,7 @@ it defaults to `default-directory'."
   "Resolve JavaScript alias PATH to actual file paths.
 
 Argument PATH is a string representing the path to be resolved."
-  (when-let ((alias-cell (seq-find (lambda (it)
+  (when-let* ((alias-cell (seq-find (lambda (it)
                                      (string-match-p
                                       (concat "^" (car it)) path))
                                    js-eval-project-aliases)))
@@ -3452,7 +3452,7 @@ Optional argument DIR is a string representing the directory from which PATH
 should be resolved if PATH is not absolute."
   (when (and path (stringp path))
     (setq path (js-eval-strip-text-props path))
-    (when-let ((result
+    (when-let* ((result
                 (cond ((file-name-absolute-p path)
                        (car (js-eval-resolve-paths path)))
                       ((js-eval-relative-p path)
@@ -3485,7 +3485,7 @@ point is used."
 
 Optional argument IMPORT-BOUNDS is a cons cell representing the start and end
 positions of the import statement. If not provided, it defaults to nil."
-  (when-let ((end (cdr import-bounds)))
+  (when-let* ((end (cdr import-bounds)))
     (save-excursion
       (goto-char end)
       (skip-chars-backward ";\s\t\n")
@@ -3505,7 +3505,7 @@ positions of the import statement. If not provided, it defaults to nil."
       (with-syntax-table js-eval-mode-syntax-table
         (while (js-eval-re-search-forward
                 js-eval-regexp-import-keyword nil t 1)
-          (when-let ((path (js-eval-get-path-at-point)))
+          (when-let* ((path (js-eval-get-path-at-point)))
             (push path imported-files))))
       (reverse imported-files))))
 
@@ -3631,7 +3631,7 @@ path. If not provided, the current directory is used."
                          ,(and dir (js-eval-resolve-node-modules-dir
                                     dir))
                          ,(js-eval-node-modules-global))
-                       (when-let ((node-path (getenv "NODE_PATH")))
+                       (when-let* ((node-path (getenv "NODE_PATH")))
                          (split-string node-path ":" t))))))
                    ":")
                   ":"))))
@@ -3739,10 +3739,10 @@ syntax properties."
   "Move point to the start of the enclosing list or string.
 
 Optional argument ARG is the number of levels to go up; it defaults to 1."
-  (when-let ((str-start (nth 8 (syntax-ppss (point)))))
+  (when-let* ((str-start (nth 8 (syntax-ppss (point)))))
     (goto-char str-start))
   (let ((pos (point)))
-    (when-let ((end (ignore-errors
+    (when-let* ((end (ignore-errors
                       (backward-up-list arg)
                       (point))))
       (unless (= end pos)
@@ -3766,7 +3766,7 @@ Argument NODE is the syntax tree node to be searched for the given position."
          (seq-find (apply-partially #'js-eval-find-by-node-pos pos) node))
         ((stringp node)
          (let ((value (js-eval-get-prop node :value)))
-           (when-let
+           (when-let*
                ((node-start
                  (car
                   (seq-sort
@@ -3882,7 +3882,7 @@ deeply. If nil, the parsing is shallow."
 Optional argument START is the position in the buffer from which to start
 parsing. If nil, parsing starts from the current point."
   (when start (goto-char start))
-  (when-let ((bounds (js-eval-forward-scope)))
+  (when-let* ((bounds (js-eval-forward-scope)))
     (save-excursion (js-eval-parse-scope (1+ (car bounds)) (cdr bounds)))))
 
 (defun js-eval-parse-current-scope ()
@@ -3897,7 +3897,7 @@ parsing. If nil, parsing starts from the current point."
               (prev-token-pos))
           (setq prev-token (car prev-token-cell))
           (setq prev-token-pos (cdr prev-token-cell))
-          (when-let ((args
+          (when-let* ((args
                       (cond ((equal prev-token "=>")
                              (goto-char prev-token-pos)
                              (js-eval-backward-whitespace)
@@ -3985,7 +3985,7 @@ properties in the parsed object. If nil, properties are not included."
           ;; object method
           ("("
            (setq value-start (point))
-           (if-let ((method (js-eval-parse-object-method key)))
+           (if-let* ((method (js-eval-parse-object-method key)))
                (setq value method)
              (goto-char value-start)
              (forward-sexp 1)
@@ -4000,7 +4000,7 @@ properties in the parsed object. If nil, properties are not included."
            (setq value-start (point))
            (cond
             ((looking-at "(")
-             (if-let ((arrow (js-eval-parse-arrow-function)))
+             (if-let* ((arrow (js-eval-parse-arrow-function)))
                  (setq value arrow)
                (js-eval-skip-to-char-same-scope "[,;]")
                (setq value-end (point))))
@@ -4093,7 +4093,7 @@ properties in the parsed array. If nil, properties are not included."
 Optional argument WITH-PROPS is a boolean indicating whether to include
 properties in the parsed object."
   (with-syntax-table js-eval-mode-syntax-table
-    (when-let ((bounds (save-excursion
+    (when-let* ((bounds (save-excursion
                          (js-eval-forward-scope))))
       (let ((obj (or
                   (js-eval-parse-array with-props)
@@ -4232,7 +4232,7 @@ to the current key, if any."
 
 (defun js-eval-parse-token-at-point ()
   "Parse JavaScript token at point."
-  (if-let
+  (if-let*
       ((obj
         (and
          (member
@@ -4380,7 +4380,7 @@ defaults to \"-*_~$A-Za-z0-9:\\\\.\"."
     ("/*" (js-eval-forward-whitespace))
     ("//" (js-eval-forward-whitespace)))
   (or (js-eval-get-operator-at-point)
-      (when-let ((char (js-eval-get-next-char 1)))
+      (when-let* ((char (js-eval-get-next-char 1)))
         (pcase char
           ("/" (let ((beg (point)))
                  (when (re-search-forward "[^/]/" nil t 1)
@@ -4494,7 +4494,7 @@ Optional argument NODE-MODULES-PATH is a string representing the PATH to the
                             (js-eval-dependency-p path))
                        (expand-file-name path node-modules-path))
                       (t
-                       (when-let ((abs-path (js-eval-path-to-real path dir)))
+                       (when-let* ((abs-path (js-eval-path-to-real path dir)))
                          (js-eval-get-temp-file-name abs-path))))))
     result))
 
@@ -4521,7 +4521,7 @@ Optional argument CODE is the JavaScript code as a string to transform."
                   (path (buffer-substring-no-properties
                          (car path-bounds)
                          (cdr path-bounds))))
-        (when-let ((choice
+        (when-let* ((choice
                     (js-eval-transform-import-path-abs
                      path
                      default-directory node-modules-path)))
@@ -4735,7 +4735,7 @@ buffer before collecting imports. If nil, the buffer's content is used as is."
                                  (string-match-p
                                   "/node_modules/" it)
                                  (null
-                                  (when-let ((ext
+                                  (when-let* ((ext
                                               (file-name-extension
                                                it)))
                                     (member ext '("ts" "js" "jsx" "tsx" "json"))))))
@@ -4754,7 +4754,7 @@ Argument SOURCE-FILE-NAME is the name of the source file to check for caching.
 
 Argument TARGET-FILE-NAME is the name of the target file to check against the
 cache."
-  (when-let ((cached
+  (when-let* ((cached
               (when (file-exists-p target-file-name)
                 (gethash source-file-name
                          js-eval-files-modified-time-cache)))
@@ -4897,7 +4897,7 @@ Argument CODE is a string containing the JavaScript code to be tokenised."
 
 Argument ITEM is the item from which properties are retrieved and used to get
 the substring."
-  (when-let ((start (js-eval-get-prop item :start))
+  (when-let* ((start (js-eval-get-prop item :start))
              (end (js-eval-get-prop item :end)))
     (buffer-substring-no-properties start end)))
 
@@ -4930,7 +4930,7 @@ the substring."
             (ast-items))
         (while (setq code (pop codes))
           (setq tokens (seq-uniq (js-eval-comint-tokenise code)))
-          (when-let ((filtered-ast (seq-filter
+          (when-let* ((filtered-ast (seq-filter
                                     (lambda (it)
                                       (and
                                        (stringp it)
@@ -4975,7 +4975,7 @@ the substring."
 
 Argument COMPILED-NAME is a string representing the file name of the compiled
 JavaScript code to be evaluated."
-  (when-let ((tmp (and (file-exists-p compiled-name)
+  (when-let* ((tmp (and (file-exists-p compiled-name)
                        (replace-regexp-in-string
                         "\\.[a-z]+$" "-temp.js"
                         compiled-name))))
@@ -5020,7 +5020,7 @@ the function prompts the user to input the code."
           (setq js-eval-files
                 (js-eval-files-to-compile-alist files-to-compile))
           (js-eval-compile-files js-eval-files)
-          (when-let ((compiled-code (cadr (js-eval-babel-compile code))))
+          (when-let* ((compiled-code (cadr (js-eval-babel-compile code))))
             (unless (file-exists-p (file-name-directory target-filename))
               (make-directory (file-name-directory target-filename) t))
             (write-region compiled-code nil target-filename nil nil nil nil)
@@ -5094,7 +5094,7 @@ Optional argument FILE is the path to the compiled JavaScript file. If not
 provided, it defaults to the temporary FILE name derived from the current
 buffer's FILE name."
   (interactive)
-  (when-let ((compiled-file
+  (when-let* ((compiled-file
               (or file
                   (and buffer-file-name
                        (js-eval-get-temp-file-name buffer-file-name))
@@ -5147,7 +5147,7 @@ Optional argument ARG is a string of JavaScript code to be evaluated."
 (defun js-eval-cleanup ()
   "Delete temporary files and buffers created by `js-eval-files'."
   (interactive)
-  (mapc (lambda (it) (when-let ((buff (get-file-buffer it)))
+  (mapc (lambda (it) (when-let* ((buff (get-file-buffer it)))
                   (kill-buffer buff))
           (delete-file it))
         (mapcar #'cdr js-eval-files)))
@@ -5180,7 +5180,7 @@ Optional argument ARG is a string of JavaScript code to be evaluated."
                                             temp-file))
                                      tsc-args))
                    "\s")))
-    (when-let ((buff (get-file-buffer outfile)))
+    (when-let* ((buff (get-file-buffer outfile)))
       (with-current-buffer buff
         (set-buffer-modified-p nil))
       (kill-buffer buff))
@@ -5331,7 +5331,7 @@ Optional argument ENV is a list of environment variables to set in the form of
     (set-process-filter
      proc
      (lambda (proc string)
-       (when-let ((buf (process-buffer proc)))
+       (when-let* ((buf (process-buffer proc)))
          (with-current-buffer buf
            (let ((inhibit-read-only t))
              (save-excursion
@@ -5377,7 +5377,7 @@ Optional argument ENV is a list of environment variables to set in the form of
     (set-process-filter
      proc
      (lambda (proc string)
-       (when-let ((buf (process-buffer proc)))
+       (when-let* ((buf (process-buffer proc)))
          (with-current-buffer buf
            (let ((inhibit-read-only t))
              (save-excursion
@@ -5412,13 +5412,13 @@ Optional argument ENV is a list of environment variables to set in the form of
 (defun js-eval-ensure-babel-project ()
   "Ensure Babel project directory and dependencies."
   (interactive)
-  (when-let ((project-dir (replace-regexp-in-string
+  (when-let* ((project-dir (replace-regexp-in-string
                            "/node_modules/?$" ""
                            js-eval-babel-node-modules-path)))
     (when (and (not (file-exists-p project-dir))
                (yes-or-no-p (format "Create directory %s?" project-dir)))
       (make-directory project-dir t))
-    (when-let ((command (js-eval-make-npm-install-command)))
+    (when-let* ((command (js-eval-make-npm-install-command)))
       (unless (file-exists-p (expand-file-name "package.json" project-dir))
         (setq command (concat "npm init -y && " command)))
       (when (yes-or-no-p (format "Run %s?" command))
@@ -5426,7 +5426,7 @@ Optional argument ENV is a list of environment variables to set in the form of
 
 (defun js-eval-current-file-compiled-p ()
   "Check if compiled JS file exists for current buffer."
-  (when-let ((file (when buffer-file-name
+  (when-let* ((file (when buffer-file-name
                      (js-eval-get-temp-file-name
                       buffer-file-name))))
     (file-exists-p file)))
