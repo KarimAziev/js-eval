@@ -117,6 +117,37 @@ files to include during the evaluation process."
   :group 'js-eval
   :type '(repeat string))
 
+(defun js-eval-normalize-aliases (paths &optional base-url)
+  "Normalize aliases in PATHS with optional BASE-URL.
+
+Argument PATHS is a list of cons cells where the car is the alias and the cdr is
+the path or PATHS associated with that alias.
+
+Optional argument BASE-URL is a string representing the base URL to which the
+PATHS should be resolved."
+  (let ((alist (mapcar
+                (lambda (it)
+                  (let ((alias (js-eval-slash
+                                (string-join
+                                 (split-string (format "%s" (car it))
+                                               "\\*"))))
+                        (alias-paths (cond
+                                      ((vectorp (cdr it))
+                                       (append (cdr it) nil))
+                                      ((listp (cdr it))
+                                       (cdr it))
+                                      (t `(,(cdr it))))))
+                    (setq alias-paths (mapcar
+                                       (lambda (p)
+                                         (setq p (replace-regexp-in-string
+                                                  "\\*" "" p))
+                                         (js-eval-expand-alias-path
+                                          p base-url))
+                                       alias-paths))
+                    (cons alias alias-paths)))
+                paths)))
+    (seq-sort-by (lambda (it) (length (car it))) #'> alist)))
+
 (defcustom js-eval-project-aliases nil
   "Alist mapping JS aliases to project directory paths.
 
@@ -2436,7 +2467,12 @@ the project.
 Optional argument TSCONFIG-NAME is a string specifying the name of the tsconfig
 file."
   (unless project-root (setq project-root (js-eval-find-project-root)))
-  (unless tsconfig-name (setq tsconfig-name js-eval-tsconfig-filename))
+  (unless tsconfig-name
+    (setq tsconfig-name (if (or (not js-eval-tsconfig-filename)
+                                (file-name-absolute-p js-eval-tsconfig-filename))
+                            js-eval-tsconfig-filename
+                          (expand-file-name js-eval-tsconfig-filename
+                                            (or project-root default-directory)))))
   (let ((config)
         (compiler-options)
         (found)
@@ -2468,36 +2504,6 @@ file."
                          (js-eval-dirname extends))))
     (js-eval-normalize-aliases found base-url)))
 
-(defun js-eval-normalize-aliases (paths &optional base-url)
-  "Normalize aliases in PATHS with optional BASE-URL.
-
-Argument PATHS is a list of cons cells where the car is the alias and the cdr is
-the path or PATHS associated with that alias.
-
-Optional argument BASE-URL is a string representing the base URL to which the
-PATHS should be resolved."
-  (let ((alist (mapcar
-                (lambda (it)
-                  (let ((alias (js-eval-slash
-                                (string-join
-                                 (split-string (format "%s" (car it))
-                                               "\\*"))))
-                        (alias-paths (cond
-                                      ((vectorp (cdr it))
-                                       (append (cdr it) nil))
-                                      ((listp (cdr it))
-                                       (cdr it))
-                                      (t `(,(cdr it))))))
-                    (setq alias-paths (mapcar
-                                       (lambda (p)
-                                         (setq p (replace-regexp-in-string
-                                                  "\\*" "" p))
-                                         (js-eval-expand-alias-path
-                                          p base-url))
-                                       alias-paths))
-                    (cons alias alias-paths)))
-                paths)))
-    (seq-sort-by (lambda (it) (length (car it))) #'> alist)))
 
 (defun js-eval-response-success (&rest props)
   "Parse response data and execute callback with result.
