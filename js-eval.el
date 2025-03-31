@@ -1802,23 +1802,26 @@ Argument FILENAME is the name of the file whose content will be used.
 Remaining arguments BODY are forms that are evaluated with the content of
 FILENAME."
   (declare (indent 2))
-  `(when (and ,filename (file-exists-p ,filename))
-     (js-eval-with-temp-buffer
-      (save-excursion (insert (with-temp-buffer
-                                (let ((inhibit-read-only t))
-                                  (erase-buffer)
-                                  (if-let* ((buff (get-file-buffer ,filename)))
-                                      (insert-buffer-substring-no-properties
-                                       buff)
-                                    (insert-file-contents ,filename))
-                                  (buffer-string)))))
-      (let ((buffer-file-name ,filename)
-            (default-directory (funcall
-                                (js-eval-compose
-                                 #'js-eval-slash
-                                 #'js-eval-dirname)
-                                ,filename)))
-        ,@body))))
+  (let ((file (make-symbol "file")))
+    `(let ((,file ,filename))
+      (when (and ,file (file-exists-p ,file))
+       (js-eval-with-temp-buffer
+        (save-excursion
+          (insert (with-temp-buffer
+                    (let ((inhibit-read-only t))
+                     (erase-buffer)
+                     (if-let* ((buff (get-file-buffer ,file)))
+                         (insert-buffer-substring-no-properties
+                          buff)
+                       (insert-file-contents ,file))
+                     (buffer-string)))))
+        (let ((buffer-file-name ,file)
+              (default-directory (funcall
+                                  (js-eval-compose
+                                   #'js-eval-slash
+                                   #'js-eval-dirname)
+                                  ,file)))
+         ,@body))))))
 
 (defun js-eval-remove-comments ()
   "Strip comments from JavaScript code."
