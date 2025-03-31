@@ -3146,58 +3146,72 @@ the evaluation."
 (defvar js-eval-current-alias nil
   "Alias for the current JavaScript evaluation context.")
 
-(defvar js-eval-ast-node-builtins-js-str
-  "
-const annotateFunction = (str) => {
-        let parts = str.split('').reverse();
-        let processed = [];
-        let curr;
-        let bracketsOpen = 0;
-        let bracketsClosed = 0;
-        let openCount = 0;
-        let closedCount = 0;
-        let result;
-
-        while ((curr = !result && parts.pop())) {
-          if (curr === '(') {
-            openCount += 1;
-          } else if (curr === ')') {
-            closedCount += 1;
-          }
-          if (openCount > 0) {
-            processed.push(curr);
-            if (curr === '{') {
-              bracketsOpen += 1;
-            } else if (curr === '}') {
-              bracketsClosed += 1;
-            }
-          }
-          result =
-            result ||
-            (bracketsOpen === bracketsClosed &&
-              openCount === closedCount &&
-              openCount > 0)
-              ? processed.join('')
-              : undefined;
-        }
-
-        return result
-          ? 'function'.concat(result).concat('{}')
-          : result;
-      }
-const mapNodeBuiltins = () => {
-  const annotateFn = (fn) => {
-    const len = fn.length || 0;
-    let idx = 0;
-    let list;
-    list = new Array(len);
-    while (idx < len) {
-      list[idx] = `arg${idx}`;
-      idx += 1;
+(defvar js-eval-ast-node-builtins-js-str "
+const decycle = (obj) => {
+  const seen = new WeakSet();
+  const helper = (value, path = []) => {
+    if (
+      value === null ||
+      value === undefined ||
+      /^(boolean|number|string|bigint)$/.test(typeof value)
+    ) {
+      return value;
     }
-    return `function ${fn.name && fn.name.split(' ')[0]} ${list.join(', ')} {}`;
+    if (typeof value === 'object') {
+      if (seen.has(value)) {
+        return { ':Circular': path };
+      }
+      seen.add(value);
+      if (Array.isArray(value)) {
+        return value.map((item, idx) => helper(item, [...path, idx]));
+      } else {
+        return Object.keys(value).reduce((acc, key) => {
+          acc[key] = helper(value[key], [...path, key]);
+          return acc;
+        }, {});
+      }
+    }
+    return value;
   };
+  return helper(obj);
+};
 
+const annotateFunction = (str) => {
+  let parts = str.split('').reverse();
+  let processed = [];
+  let curr;
+  let bracketsOpen = 0;
+  let bracketsClosed = 0;
+  let openCount = 0;
+  let closedCount = 0;
+  let result;
+
+  while ((curr = !result && parts.pop())) {
+    if (curr === '(') {
+      openCount += 1;
+    } else if (curr === ')') {
+      closedCount += 1;
+    }
+    if (openCount > 0) {
+      processed.push(curr);
+      if (curr === '{') {
+        bracketsOpen += 1;
+      } else if (curr === '}') {
+        bracketsClosed += 1;
+      }
+    }
+    result =
+      result ||
+      (bracketsOpen === bracketsClosed &&
+        openCount === closedCount &&
+        openCount > 0)
+        ? processed.join('')
+        : undefined;
+  }
+
+  return result ? 'function'.concat(result).concat('{}') : result;
+};
+const mapNodeBuiltins = () => {
   const mapper = (data, depth = 0) => {
     return Object.keys(data)
       .filter((k) => !/^_/g.test(k))
@@ -3205,16 +3219,20 @@ const mapNodeBuiltins = () => {
         const v = data[key];
         const val =
           v instanceof Function || typeof v === 'function'
-            ? annotateFunction(v
-                .toString()
-                .replace(/\\/\\*[\\s\\S]*?\\*\\/|\\/\\/.*/g, '')
-                .replace(/\\r?\\n/gmi, '')
-                .trim())
+            ? JSON.stringify(
+                annotateFunction(
+                  v
+                    .toString()
+                    .replace(/\\/\\*[\s\\S]*?\\*\\/|\\/\\/.*/g, '')
+                    .replace(/\\r?\\n/gim, '')
+                    .trim(),
+                ),
+              )
             : Array.isArray(v)
-            ? []
-            : typeof v === 'object' && depth < 3 && v
-            ? mapper(v, depth + 1)
-            : v;
+              ? []
+              : typeof v === 'object' && depth < 3 && v
+                ? mapper(v, depth + 1)
+                : v;
         obj[key] = val;
         return obj;
       }, {});
@@ -3225,9 +3243,12 @@ const mapNodeBuiltins = () => {
       acc[moduleName] = mapper(require(moduleName));
       return acc;
     }, {});
-  return obj;
+  return JSON.stringify(decycle(obj));
 };
-mapNodeBuiltins();"
+require('util').inspect.defaultOptions.maxArrayLength = null;
+require('util').inspect.defaultOptions.maxStringLength = null;
+process.stdout.write(mapNodeBuiltins());
+"
   "JavaScript string for evaluating AST node built-ins.")
 
 ;;;###autoload
@@ -3388,19 +3409,22 @@ Argument PATH is a string representing the path to be evaluated."
 
 (defun js-eval-extract-node-builins ()
   "Extract Node.js built-in modules and functions."
-  (let ((alist (js-eval-parse-object-from-string
-                (with-temp-buffer
-                  (let ((process-environment (append '("NODE_NO_WARNINGS=1")
-                                                     process-environment)))
-                    (call-process "node" nil (current-buffer) nil "-p"
-                                  js-eval-ast-node-builtins-js-str)
-                    (let ((res (string-join (split-string (buffer-string)
-                                                          nil t)
-                                            "\s")))
-                      res))))))
-    (mapcar (lambda (it) (if-let* ((value (js-eval-get-prop it :value)))
-                        (js-eval-make-item it :value (js-eval-stringify value))
-                      it))
+  (let ((alist (with-temp-buffer
+                 (insert js-eval-ast-node-builtins-js-str "\n")
+                 (let ((process-environment
+                        (append
+                         '("NODE_NO_WARNINGS=1")
+                         process-environment)))
+                   (let ((status (call-process-region nil
+                                                      nil "node" t t nil)))
+                     (when (and (numberp status)
+                                (zerop status))
+                       (goto-char (point-min))
+                       (js-eval-parse-object)))))))
+    (mapcar (lambda (it)
+              (if-let* ((value (js-eval-get-prop it :value)))
+                  (js-eval-make-item it :value (js-eval-stringify value))
+                it))
             (js-eval-get-object-items alist))))
 
 (defun js-eval-dependency-p (module &optional project-root)
